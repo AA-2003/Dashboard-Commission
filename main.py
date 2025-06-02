@@ -7,6 +7,8 @@ from pages_.b2b import b2b
 from pages_.platform import platform
 from pages_.social import social
 from pages_.sales import sales
+from load_sheet import load_sheet
+
 
 # Constants for date range
 DEFAULT_DAYS = 40
@@ -25,10 +27,13 @@ from_date = (datetime.today() - timedelta(days=DEFAULT_DAYS)).strftime('%Y-%m-%d
 to_date = datetime.today().strftime('%Y-%m-%d')
 
 @st.cache_data
-def load_data_cached(from_date, to_date, won=False):
+def load_data_cached(sheet, from_date, to_date, won=False):
     """Load data with caching."""
-    df = load_data(from_date, to_date, WON=won)
-    return df
+    if sheet:
+        return load_sheet()
+    else:
+        return load_data(from_date, to_date, WON=won)
+
 
 user_lists = st.secrets["user_lists"]
 
@@ -46,10 +51,9 @@ def main():
         layout="wide",
     )
     apply_custom_css()
-
     st.title(COMMISSION_DASHBOARD)
-    
-    data = load_data_cached(from_date, to_date, won=True)
+
+    data = load_data_cached(True, from_date, to_date, won=True)
     data = data[data['deal_status']=='Won'].reset_index(drop=True)
     data['team'] = data['deal_owner'].map(map_team)
     st.session_state.data = data

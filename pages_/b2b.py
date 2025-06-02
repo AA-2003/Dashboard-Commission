@@ -22,10 +22,8 @@ def b2b():
 
         # Calculate current week's start date (Saturday)
         today = datetime.today().date()
-        if today.weekday() == 5:
-            current_week_start = today
-        else:
-            current_week_start = today - timedelta(days=today.weekday() + 2)  # start from Saturday
+        current_week_start = today - timedelta(days=(today.weekday() + 2)%7)  # start from Saturday
+
 
         # Create weekly ranges for last 4 weeks
         week_ranges = [(current_week_start - timedelta(weeks=i), 
@@ -138,7 +136,7 @@ def b2b():
             member_this_week_value = member_data[member_this_week_mask]['deal_value'].sum()
 
 
-            st.subheader("آمار فرد")
+            st.subheader("آمار شما")
             col3, col4 = st.columns(2)
             
             with col3:

@@ -22,10 +22,7 @@ def platform():
 
         # Calculate current week's start date (Saturday)
         today = datetime.today().date()
-        if today.weekday() == 5:
-            current_week_start = today
-        else:
-            current_week_start = today - timedelta(days=today.weekday() + 2)  # start from Saturday
+        current_week_start = today - timedelta(days=(today.weekday() + 2)%7)  # start from Saturday
 
         # Create weekly ranges for last 4 weeks
         week_ranges = [(current_week_start - timedelta(weeks=i), 
@@ -49,7 +46,6 @@ def platform():
         max_count_week = 4 - max_count_week_index
         max_value_week_index = weekly_values.index(max(weekly_values))
         max_value_week = 4 - max_value_week_index
-
         # Calculate this week's metrics for team
         this_week_mask = (filter_data['deal_done_date'].dt.date >= current_week_start) & \
                         (filter_data['deal_done_date'].dt.date <= today)
@@ -57,6 +53,7 @@ def platform():
         this_week_value = filter_data[this_week_mask]['deal_value'].sum()
 
         # Display metrics
+        
         st.subheader("آمار تیم")
         col1, col2 = st.columns(2)
 
@@ -104,6 +101,21 @@ def platform():
             fig_values.update_traces(marker_color=['#90EE90' if i == max_value_week_index else 'gray' for i in range(len(weekly_values))])
             st.plotly_chart(fig_values)
 
+        # # Daily sales trend
+        # st.subheader("روند فروش روزانه تیم")
+        # daily_sales = filter_data.groupby(filter_data['deal_done_date'].dt.date)['deal_value'].sum()
+        # daily_sales = daily_sales.sort_index()
+        
+        # df_daily_sales = pd.DataFrame({
+        #     'تاریخ': daily_sales.index,
+        #     'مقدار فروش': daily_sales.values
+        # })
+        
+        # fig_daily_sales = px.line(df_daily_sales, x='تاریخ', y='مقدار فروش', 
+        #               title='روند فروش روزانه تیم')
+        # fig_daily_sales.update_layout(xaxis_title="تاریخ", yaxis_title="مقدار فروش (تومان)", title_x=0.5, title_font=dict(size=20))
+        # st.plotly_chart(fig_daily_sales)
+
         # Member charts
         if  role == 'member' or role == 'manager':
             member_data = filter_data[filter_data['deal_owner'] == username]
@@ -138,7 +150,7 @@ def platform():
             member_this_week_value = member_data[member_this_week_mask]['deal_value'].sum()
 
 
-            st.subheader("آمار فرد")
+            st.subheader("آمار شما")
             col3, col4 = st.columns(2)
             
             with col3:
