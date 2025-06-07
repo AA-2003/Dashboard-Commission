@@ -20,11 +20,11 @@ PLATFORM = "Platform"
 B2B = "B2B"
 SALES = "Sales"
 SOCIAL = "Social"
-ACCESS_DENIED = "You do not have access to this section."
+ACCESS_DENIED = "شما به این بخش دسترسی ندارید."
 
 # Date range initialization
 from_date = (datetime.today() - timedelta(days=DEFAULT_DAYS)).strftime('%Y-%m-%d')
-to_date = datetime.today().strftime('%Y-%m-%d')
+to_date = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
 
 @st.cache_data
 def load_data_cached(sheet, from_date, to_date, won=False):
@@ -37,12 +37,26 @@ def load_data_cached(sheet, from_date, to_date, won=False):
 
 user_lists = st.secrets["user_lists"]
 
-@st.cache_data
+@st.cache_data(ttl=60000)
 def map_team(name):
-    for team, members in user_lists.items():
-        if name in members:
-            return team
-    return 'others'
+    if name in ['پلت‌فرم']:
+        return 'platform'
+    
+    elif name in ['مهمان واسطه']:
+        return 'b2b'
+    
+    elif name in ['دایرکت اینستاگرام', 'تلگرام(سوشال)', 'واتساپ(سوشال)']:
+        return 'social'
+    
+    elif name in ['تماس ورودی (مشتری)', 'چت واتس‌اپ', 'معرف', 'سایر', 'چت سایت',
+                 'چت تلگرام', 'پیامک فرم', 'تماس فرم سایت',
+                ]:
+        return 'sales'
+    
+    else:
+        return 'others'
+
+
 
 def main():
     """Main function to run the Streamlit app."""
@@ -51,17 +65,35 @@ def main():
         layout="wide",
     )
     apply_custom_css()
-    st.title(COMMISSION_DASHBOARD)
+    # logo
+    st.image("static/logo.svg", width=300)
+    with st.sidebar:
+        st.title(COMMISSION_DASHBOARD)
 
+    
+    # Load initial data
     data = load_data_cached(True, from_date, to_date, won=True)
     data = data[data['deal_status']=='Won'].reset_index(drop=True)
-    data['team'] = data['deal_owner'].map(map_team)
+    data['team'] = data['deal_source'].map(map_team)
     st.session_state.data = data
 
+    # st.dataframe(data)
+
+    # Add refresh button in sidebar
+    with st.sidebar:
+        if st.button("🔄 بروزرسانی داده‌ها", use_container_width=True):
+            # Clear cache and reload data
+            load_data_cached.clear()
+            data = load_data_cached(False, from_date, to_date, won=True)
+            data = data[data['deal_status']=='Won'].reset_index(drop=True)
+            data['team'] = data['deal_source'].map(map_team)
+            st.session_state.data = data
+            st.success("داده‌ها با موفقیت بروزرسانی شدند!")
+
     # Authentication and Team Selection Logic
+
     if 'auth' in st.session_state and st.session_state.auth:
-        col1, col2, col3 = st.columns([1,3,1])
-        with col2:
+        with st.sidebar:
             if st.button(LOGOUT, use_container_width=True):
                 st.session_state.team = None
                 st.session_state.auth = False
@@ -73,7 +105,7 @@ def main():
 
     else:
         col1, col2, col3 = st.columns([1,3,1])
-        with col2:
+        with st.sidebar:
             if st.button(GO_BACK_TO_MAIN_PAGE, use_container_width=True):
                 st.session_state.team = None
                 st.rerun()
