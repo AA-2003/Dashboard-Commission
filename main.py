@@ -1,25 +1,21 @@
-from data_loader import load_data
 from datetime import datetime, timedelta
 import streamlit as st
 from custom_css import apply_custom_css
-from auth import login
-from pages_.b2b import b2b
-from pages_.platform import platform
-from pages_.social import social
-from pages_.sales import sales
+from data_loader import load_data
 from load_sheet import load_sheet
+from teams.platform import platform
+from teams.social import social
+from teams.sales import sales
+from teams.b2b import b2b
+from auth import login
 
 
-# Constants for date range
+# Constants
 DEFAULT_DAYS = 40
 COMMISSION_DASHBOARD = "داشبورد کمیسیون"
 SELECT_YOUR_TEAM = "🎯 تیم خود را انتخاب کنید:"
 GO_BACK_TO_MAIN_PAGE = "بازگشت"
 LOGOUT = "خروج"
-PLATFORM = "Platform"
-B2B = "B2B"
-SALES = "Sales"
-SOCIAL = "Social"
 ACCESS_DENIED = "شما به این بخش دسترسی ندارید."
 
 # Date range initialization
@@ -70,7 +66,6 @@ def main():
     with st.sidebar:
         st.title(COMMISSION_DASHBOARD)
 
-    
     # Load initial data from sheet
     if 'data' not in st.session_state:
         data = load_data_cached(True, from_date, to_date, won=True)
@@ -78,18 +73,16 @@ def main():
         data['team'] = data['deal_source'].map(map_team)
         st.session_state.data = data
 
-        st.dataframe(data)
-
     # Add refresh button in sidebar
-    with st.sidebar:
-        if st.button("🔄 بروزرسانی داده‌ها", use_container_width=True):
-            # Clear cache and reload data
-            load_data_cached.clear()
-            data = load_data_cached(False, from_date, to_date, won=True)
-            data = data[data['deal_status']=='Won'].reset_index(drop=True)
-            data['team'] = data['deal_source'].map(map_team)
-            st.session_state.data = data
-            st.success("داده‌ها با موفقیت بروزرسانی شدند!")
+    # with st.sidebar:
+    #     if st.button("🔄 بروزرسانی داده‌ها", use_container_width=True):
+    #         # Clear cache and reload data
+    #         load_data_cached.clear()
+    #         data = load_data_cached(False, from_date, to_date, won=True)
+    #         data = data[data['deal_status']=='Won'].reset_index(drop=True)
+    #         data['team'] = data['deal_source'].map(map_team)
+    #         st.session_state.data = data
+    #         st.success("داده‌ها با موفقیت بروزرسانی شدند!")
 
     # Authentication and Team Selection Logic
 
@@ -116,10 +109,10 @@ def team_selection():
     """Team selection buttons."""
     cols = st.columns(2)
     teams = {
-        PLATFORM: cols[0],
-        B2B: cols[1],
-        SALES: cols[0],
-        SOCIAL: cols[1],
+        'platform': cols[0],
+        'b2b': cols[1],
+        'sales': cols[0],
+        'social': cols[1],
     }
 
     for team, col in teams.items():
@@ -133,8 +126,6 @@ def auth_check():
     if 'auth' not in st.session_state or not st.session_state.auth:
         login()
     else:
-        st.dataframe(st.session_state.data.drop_duplicates(subset=['deal_owner']))
-
         team_page_mapping = {
             "platform": (platform, 'platform'),
             "b2b": (b2b, 'b2b'),
