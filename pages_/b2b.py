@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import jdatetime
+import numpy as np
 
 def calculate_weekly_metrics(data, start_date, end_date):
     """Calculate weekly metrics for given data and date range"""
@@ -30,6 +31,8 @@ def create_weekly_chart(df, x_col, y_col, title, color_col=None):
 def display_metrics(col, metrics):
     """Display metrics in a standardized format"""
     for label, value, suffix in metrics:
+        if value is np.nan:
+            value =0
         st.metric(label, f"{value:,.0f}{suffix}")
 
 def b2b():
@@ -52,7 +55,7 @@ def b2b():
 
     # Calculate date ranges
     today = datetime.today().date()
-    start_date = jdatetime.date(1404, 2, 31).togregorian()
+    start_date = jdatetime.date(1404, 2, 28).togregorian()
     weeks_passed = (today - start_date).days // 7
     current_week_start = start_date + timedelta(weeks=weeks_passed)
     week_ranges = [(current_week_start - timedelta(weeks=i), 
@@ -81,7 +84,7 @@ def b2b():
     with col1:
         display_metrics(col1, [
             ("تعداد فروش امروز", filter_data[filter_data['deal_done_date'].dt.date == today].shape[0], ""),
-            ("بیشترین تعداد فروش هفتگی", max(weekly_counts), f" ({4-max_count_week} هفته پیش)"),
+            ("بیشترین تعداد فروش هفتگی", max(weekly_counts), f" ({4-max_count_week} هفته پیش) "),
             ("تعداد فروش این هفته", this_week_count, "")
         ])
 
@@ -154,28 +157,30 @@ def b2b():
     # Progress bar
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=['پیشرفت'],
-        y=[progress_percentage],
+        y=['پیشرفت'],
+        x=[progress_percentage],
         text=[f'{progress_percentage:.1f}%'],
         textposition='auto',
         marker_color='#90EE90' if progress_percentage >= 100 else '#FFB6C1',
-        width=0.3
+        width=0.3,
+        orientation='h'
     ))
     fig.update_layout(
-        yaxis_title='درصد پیشرفت',
-        yaxis_range=[0, max(120, progress_percentage + 20)],
+        xaxis_title='درصد پیشرفت',
+        xaxis_range=[0, max(120, progress_percentage + 20)],
         showlegend=False,
-        height=200,
-        margin=dict(l=20, r=20, t=40, b=20),
+        height=100,
+        margin=dict(l=20, r=20, t=20, b=20),
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
+        plot_bgcolor='rgba(0,0,0,0)',
+        yaxis=dict(showticklabels=False)
     )
     fig.add_shape(
         type="line",
-        x0=-0.5,
-        y0=100,
-        x1=0.5,
-        y1=100,
+        y0=-0.5,
+        x0=100,
+        y1=0.5,
+        x1=100,
         line=dict(color="red", width=2, dash="dash")
     )
     st.plotly_chart(fig, use_container_width=True)

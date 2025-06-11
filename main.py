@@ -71,13 +71,14 @@ def main():
         st.title(COMMISSION_DASHBOARD)
 
     
-    # Load initial data
-    data = load_data_cached(True, from_date, to_date, won=True)
-    data = data[data['deal_status']=='Won'].reset_index(drop=True)
-    data['team'] = data['deal_source'].map(map_team)
-    st.session_state.data = data
+    # Load initial data from sheet
+    if 'data' not in st.session_state:
+        data = load_data_cached(True, from_date, to_date, won=True)
+        data = data[data['deal_status']=='Won'].reset_index(drop=True)
+        data['team'] = data['deal_source'].map(map_team)
+        st.session_state.data = data
 
-    # st.dataframe(data)
+        st.dataframe(data)
 
     # Add refresh button in sidebar
     with st.sidebar:
@@ -120,7 +121,7 @@ def team_selection():
         SALES: cols[0],
         SOCIAL: cols[1],
     }
-    
+
     for team, col in teams.items():
         with col:
             if st.button(team, use_container_width=True):
@@ -132,6 +133,8 @@ def auth_check():
     if 'auth' not in st.session_state or not st.session_state.auth:
         login()
     else:
+        st.dataframe(st.session_state.data.drop_duplicates(subset=['deal_owner']))
+
         team_page_mapping = {
             "platform": (platform, 'platform'),
             "b2b": (b2b, 'b2b'),

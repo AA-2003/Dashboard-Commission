@@ -194,7 +194,7 @@ def load_data(start_date: str = None, end_date: str = None, WON: bool = False) -
 
     all_deals = []
     offset = 0
-    limit = 1000  
+    limit = 2000  
     delay_between_chunks = 2
     max_retries = 5 
     delay_on_retry = 5  
