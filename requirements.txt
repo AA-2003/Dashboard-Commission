@@ -6,3 +6,4 @@ pyyaml
 google-auth
 gspread
 plotly
+jdatetime
