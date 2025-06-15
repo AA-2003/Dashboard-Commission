@@ -13,8 +13,7 @@ def login():
     name_ = st.selectbox("نام کاربری", usernames_map)
     username = next((name for name, mapped_name in st.secrets['names'].items() if mapped_name == name_), name_)
     password = st.text_input("رمز عبور", type="password")
-    print(password)
-    print(passwords[username])
+    
     if st.button('ورود'):
         if username and password:
             if username in passwords and passwords[username] == password:

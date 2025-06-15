@@ -9,7 +9,7 @@ import numpy as np
 
 def social():
     """social team dashboard with optimized metrics and visualizations"""
-    st.title("📊 داشبورد تیم social")
+    st.title("📊 داشبورد تیم Social")
     
     if not all(key in st.session_state for key in ['username', 'role', 'data', 'team', 'auth']):
         st.error("لطفا ابتدا وارد سیستم شوید")
@@ -18,4 +18,6 @@ def social():
     # Initialize data and variables
     role = st.session_state.role
     username = st.session_state.username
-    st.write(f"{username} عزیز خوش آمدی😃")
+    name = st.session_state.name
+
+    st.write(f"{name}  عزیز خوش آمدی😃")  
