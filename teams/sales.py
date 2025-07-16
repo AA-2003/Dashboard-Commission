@@ -9,7 +9,7 @@ import numpy as np
 
 def sales():
     """sales team dashboard with optimized metrics and visualizations"""
-    st.title("📊 داشبورد تیم sales")
+    st.title("📊 داشبورد تیم Sales")
     
     if not all(key in st.session_state for key in ['username', 'role', 'data', 'team', 'auth']):
         st.error("لطفا ابتدا وارد سیستم شوید")
@@ -18,5 +18,6 @@ def sales():
     # Initialize data and variables
     role = st.session_state.role
     username = st.session_state.username
-    st.write(f"{username}  عزیز خوش آمدی😃")
-    
+    name = st.session_state.name
+
+    st.write(f"{name}  عزیز خوش آمدی😃")    
