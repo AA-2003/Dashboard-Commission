@@ -170,7 +170,7 @@ def platform():
     st.plotly_chart(fig, use_container_width=True)
     # Target and reward section
     st.subheader("🎯 تارگت پاداش")
-    target = max(weekly_values)
+    target = max(weekly_values) * 0.9
     reward_percentage = 0.05
     # this_week_value = target + 332000000
 
