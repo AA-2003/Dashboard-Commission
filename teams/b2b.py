@@ -71,9 +71,10 @@ def b2b():
     # This week
     jalali_start = jdatetime.date.fromgregorian(date=current_week_start)
     jalali_end = jdatetime.date.fromgregorian(date=today)
+    end_week = jdatetime.date.fromgregorian(date=current_week_start + timedelta(6))
     col1, col2 = st.columns(2)
     with col1:
-        st.info(f"شروع هفته: {jalali_start.strftime('%Y/%m/%d')}")
+        st.info(f"شروع هفته: {jalali_start.strftime('%Y/%m/%d')} \n پایان هفته: {end_week.strftime('%Y/%m/%d')}")
     with col2:
         st.info(f"امروز: {jalali_end.strftime('%Y/%m/%d')}")
 
@@ -159,13 +160,15 @@ def b2b():
         })
         st.plotly_chart(create_weekly_chart(df_avg, 'هفته', 'میانگین', 'میانگین معامله های تیم', max_avg_week))
 
+    
     # Target and reward section
     st.subheader("🎯 تارگت پاداش")
-    target = max(weekly_values) * 0.9
+
     reward_percentage = 0.05
-    # this_week_value = target + 332000000
-    progress_percentage = (this_week_value / target) * 100    
-    
+
+    # reward
+    target = max(weekly_values) * 0.9
+    progress_percentage = (this_week_value / target) * 100
 
     col1, col2 = st.columns(2)
     with col1:
@@ -173,7 +176,7 @@ def b2b():
         if this_week_value > target:
             reward = reward_percentage * (this_week_value - target)
             st.success(f"🎉 پاداش: {reward:,.0f} تومان")
-            st.balloons()
+
         else:
             remaining = target - this_week_value
             st.warning(f"⏳ باقیمانده: {remaining:,.0f} تومان")
@@ -181,11 +184,9 @@ def b2b():
         if progress_percentage < 100:
             st.info(f"🎯 {100 - progress_percentage:.1f}% تا رسیدن به تارگت ")
 
-            
     with col2:
         st.subheader("میزان پیشرفت ")
         display_percentage = min(progress_percentage, 100.0)
-        
         fig = go.Figure()
         fig.add_trace(go.Pie(
             values=[display_percentage, 100-display_percentage],
@@ -196,7 +197,6 @@ def b2b():
             rotation=90,
             pull=[0.1, 0]
         ))
-        
         fig.update_layout(
             annotations=[
                 dict(text=f'{display_percentage:.1f}%', x=0.5, y=0.5, font_size=24, font_color='#2F4053', showarrow=False),
@@ -207,8 +207,105 @@ def b2b():
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)'
         )
-        
         st.plotly_chart(fig, use_container_width=True)
+    
+    # Show sales for the last 10 weeks (X axis: start and end day/month of each week)
+    st.markdown("---")
+    st.subheader("📊 فروش ۱۰ هفته اخیر")
+
+    num_weeks_sales = 10   # Number of weeks to display in the sales chart
+    num_weeks_target_reward = 6  # Number of weeks to display target/reward boxes
+
+    # Calculate the last 10 week ranges (ending before the current week)
+    all_week_ranges = []
+    for i in range(num_weeks_sales, 0, -1):
+        week_start = current_week_start - timedelta(weeks=i)
+        week_end = week_start + timedelta(days=6)
+        all_week_ranges.append((week_start, week_end))
+
+    # Calculate weekly sales for each of the last 10 weeks
+    all_weekly_sales = []
+    for start, end in all_week_ranges:
+        mask = (filter_data['deal_done_date'].dt.date >= start) & (filter_data['deal_done_date'].dt.date <= end)
+        value = filter_data[mask]['deal_value'].sum()
+        all_weekly_sales.append(value)
+
+    # Prepare X axis labels: day/month for start and end of week in Jalali (e.g., 01/03 - 07/03)
+    def to_jalali_label(start, end):
+        start_j = jdatetime.date.fromgregorian(date=start)
+        end_j = jdatetime.date.fromgregorian(date=end)
+        return f"{start_j.day:02d}/{start_j.month:02d} - {end_j.day:02d}/{end_j.month:02d}"
+
+    weeks_labels = [
+        to_jalali_label(start, end)
+        for start, end in all_week_ranges
+    ]
+
+    # Plot sales for last 10 weeks
+    fig_sales = go.Figure()
+    fig_sales.add_trace(go.Bar(
+        x=weeks_labels,
+        y=all_weekly_sales,
+        name="Sales",
+        marker_color="#0984e3",
+        text=[f"{v:,.0f}" for v in all_weekly_sales],
+        textposition='outside'
+    ))
+    fig_sales.update_layout(
+        title="",
+        xaxis_title="هفته (شروع - پایان)",
+        yaxis_title="فروش (تومان)",
+        font=dict(family="Tahoma", size=16),
+        height=450,
+        margin=dict(l=20, r=20, t=60, b=20),
+        showlegend=False
+    )
+    st.plotly_chart(fig_sales, use_container_width=True)
+
+    # Calculate target and reward for the last 6 weeks (ending before current week)
+    st.markdown("---")
+    st.subheader("🎯 تارگت & 💰 پاداش (6 هفته اخیر)")
+
+    # For each of the last 6 weeks, calculate target and reward
+    target_reward_boxes = []
+    for i in range(num_weeks_sales - num_weeks_target_reward, num_weeks_sales):
+        # Look back at the 4 weeks before the current week
+        start_idx = max(0, i-4)
+        end_idx = i  # up to but not including current week
+        prev_weeks = all_weekly_sales[start_idx:end_idx]
+        if prev_weeks:
+            past_target = max(prev_weeks) * 0.9
+        else:
+            past_target = 0
+        week_value = all_weekly_sales[i]
+        if past_target > 0 and week_value > past_target:
+            reward = reward_percentage * (week_value - past_target)
+        else:
+            reward = 0
+        week_start, week_end = all_week_ranges[i]
+        week_label = to_jalali_label(week_start, week_end)
+        target_reward_boxes.append({
+            "week": 6-(i-4),
+            "label": week_label,
+            "target": past_target,
+            "reward": reward,
+            "sales": week_value
+        })
+
+    # Display target and reward for each of the last 6 weeks in separate boxes
+    cols = st.columns(num_weeks_target_reward)
+    for idx, box in enumerate(target_reward_boxes):
+        with cols[idx]:
+            st.markdown(f"<div style='text-align:center; font-size:1.1em; font-weight:bold; margin-bottom:8px;'>{box['label']}</div>", unsafe_allow_html=True)
+            st.markdown(f"{box['week']:,.0f} هفته پیش")
+            st.metric("تارگت", f"{box['target']:,.0f} تومان")
+            st.metric("فروش", f"{box['sales']:,.0f} تومان")
+            if box['reward'] > 0:
+                st.success(f"پاداش: +{box['reward']:,.0f} تومان")
+            else:
+                st.warning("No Reward")
+
+    st.markdown("---")
 
     # Member specific section
     if role in ['member', 'manager']:
