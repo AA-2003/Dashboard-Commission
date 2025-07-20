@@ -22,7 +22,7 @@ ACCESS_DENIED = "شما به این بخش دسترسی ندارید."
 from_date = (datetime.today() - timedelta(days=DEFAULT_DAYS)).strftime('%Y-%m-%d')
 to_date = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
 
-@st.cache_data
+@st.cache_data(ttl=600)
 def load_data_cached(sheet, from_date, to_date, won=False):
     """Load data with caching."""
     if sheet:
@@ -33,7 +33,7 @@ def load_data_cached(sheet, from_date, to_date, won=False):
 
 user_lists = st.secrets["user_lists"]
 
-@st.cache_data(ttl=60000)
+@st.cache_data(ttl=600)
 def map_team(name):
     if name in ['پلت‌فرم']:
         return 'platform'
@@ -85,7 +85,6 @@ def main():
     #         st.success("داده‌ها با موفقیت بروزرسانی شدند!")
 
     # Authentication and Team Selection Logic
-
     if 'auth' in st.session_state and st.session_state.auth:
         with st.sidebar:
             if st.button(LOGOUT, use_container_width=True):
