@@ -332,7 +332,7 @@ def b2b():
 
 def display_member_metrics(data, member, week_ranges, today, current_week_start, show_name_as_you=False):
     """Display metrics and charts for a specific team member"""
-    member_data = data[data['deal_owner'] == member]
+    member_data = data[data['deal_owner'].str.contains(member)]
     member = st.secrets['names'][member]
     # Calculate member metrics
     member_metrics = [calculate_weekly_metrics(member_data, start, end) for start, end in week_ranges]
