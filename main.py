@@ -1,17 +1,17 @@
 from datetime import datetime, timedelta
 import streamlit as st
-from custom_css import apply_custom_css
-from data_loader import load_data
-from load_sheet import load_sheet
+from utils.custom_css import apply_custom_css
+from utils.data_loader import load_data
+from utils.load_sheet import load_sheet
+from utils.auth import login
 from teams.platform import platform
 from teams.social import social
 from teams.sales import sales
 from teams.b2b import b2b
-from auth import login
 
 
 # Constants
-DEFAULT_DAYS = 40
+DEFAULT_DAYS = 80
 COMMISSION_DASHBOARD = "داشبورد کمیسیون"
 SELECT_YOUR_TEAM = "🎯 تیم خود را انتخاب کنید:"
 GO_BACK_TO_MAIN_PAGE = "بازگشت"

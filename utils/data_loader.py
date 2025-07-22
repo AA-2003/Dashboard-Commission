@@ -7,8 +7,7 @@ import numpy as np
 import requests
 import time
 import json 
-from dotenv import load_dotenv
-import os
+import streamlit as st
 
 
 source_id_map = {
@@ -182,11 +181,8 @@ def load_data(start_date: str = None, end_date: str = None, WON: bool = False) -
     """
     logger.info("Start loading data")
     
-    # Load environment variables from .env file
-    load_dotenv()
-
     # Get API key from environment variables
-    API_KEY = os.getenv('DIDAR_API_KEY')
+    API_KEY = st.secrets.get("DIDAR_API_KEY")['DIDAR_API_KEY'] 
     if not API_KEY:
         raise ValueError("DIDAR_API_KEY not found in environment variables")
         
