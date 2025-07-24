@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
-from logging_config import setup_logger
+from utils.logging_config import setup_logger
 logger = setup_logger()
 
 
