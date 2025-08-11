@@ -162,7 +162,6 @@ def platform():
 
     st.markdown("---")
     # Platform - Split by Day, Week, Month - Drill Down
-
     st.subheader("📊 فروش به تفکیک پلتفرم")
 
     def get_platform_sales_df(mask, label):

@@ -2,7 +2,7 @@ import streamlit as st
 import gspread
 import pandas as pd
 from google.oauth2.service_account import Credentials
-from logging_config import setup_logger
+from utils.logging_config import setup_logger
 logger = setup_logger()
 
 
@@ -12,8 +12,6 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapi
 # --- Identify your Spreadsheet ---
 # It's better to get SPREADSHEET_ID from secrets as well,
 # but using the hardcoded one as per your provided code for now.
-
-SHEET_NAME = 'main'
 
 def authenticate_google_sheets():
     """
@@ -105,7 +103,7 @@ def load_data_from_sheet(client, spreadsheet_id, sheet_name):
         st.exception(e)
     return None # Return None in case of any error
 
-def load_sheet():
+def load_sheet(SHEET_NAME='Data') -> pd.DataFrame:
     # Authenticate and get gspread client
     gs_client = authenticate_google_sheets()
 
@@ -119,12 +117,11 @@ def load_sheet():
         else:
             current_spreadsheet_id = current_spreadsheet_id
 
-
         if not current_spreadsheet_id: # Should not happen if hardcoded, but good check if from secrets
             logger.error("SPREADSHEET_ID is missing. Cannot load data.")
         else:
             logger.info(f"Attempting to load data from Spreadsheet ID: {current_spreadsheet_id}, Sheet: {SHEET_NAME}")
-            with st.spinner(f"Loading data from sheet'..."):
+            with st.spinner(f"بارگذاری داده ها ..."):
                 df_main = load_data_from_sheet(gs_client, current_spreadsheet_id, SHEET_NAME)
 
             if df_main is not None: # Check if df_main is not None (means no critical error during load)

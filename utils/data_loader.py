@@ -1,6 +1,6 @@
 from requests.exceptions import RequestException, HTTPError, Timeout
 from datetime import datetime, timedelta
-from logging_config import setup_logger
+from utils.logging_config import setup_logger
 logger = setup_logger()
 import pandas as pd
 import numpy as np

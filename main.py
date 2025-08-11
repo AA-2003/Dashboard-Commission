@@ -22,7 +22,7 @@ ACCESS_DENIED = "شما به این بخش دسترسی ندارید."
 from_date = (datetime.today() - timedelta(days=DEFAULT_DAYS)).strftime('%Y-%m-%d')
 to_date = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_data_cached(sheet, from_date, to_date, won=False):
     """Load data with caching."""
     if sheet:
@@ -44,14 +44,12 @@ def map_team(name):
     elif name in ['دایرکت اینستاگرام', 'تلگرام(سوشال)', 'واتساپ(سوشال)']:
         return 'social'
     
-    elif name in ['تماس ورودی (مشتری)', 'چت واتس‌اپ', 'معرف', 'سایر', 'چت سایت',
+    elif name in ['تماس ورودی (مشتری)', 'چت واتس‌اپ', 'معرف', 'چت سایت',
                  'چت تلگرام', 'پیامک فرم', 'تماس فرم سایت',
                 ]:
         return 'sales'
-    
     else:
         return 'others'
-
 
 
 def main():
@@ -60,7 +58,9 @@ def main():
         page_title=COMMISSION_DASHBOARD, 
         layout="wide",
     )
+
     apply_custom_css()
+
     # logo
     st.image("static/logo.svg", width=300)
     with st.sidebar:
@@ -69,9 +69,17 @@ def main():
     # Load initial data from sheet
     if 'data' not in st.session_state:
         data = load_data_cached(True, from_date, to_date, won=True)
-        data = data[data['deal_status']=='Won'].reset_index(drop=True)
+        data = data[
+                (data['deal_status']=='Won')&
+                (data['deal_value'] != 0)
+                ].reset_index(drop=True)
         data['team'] = data['deal_source'].map(map_team)
+
+        
         st.session_state.data = data
+    
+        # load data from big query
+        # st.write(exacute_query('select * from `customerhealth-crm-warehouse.didar_data.deals` limit 10')) 
 
     # Add refresh button in sidebar
     # with st.sidebar:
