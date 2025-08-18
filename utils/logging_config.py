@@ -6,7 +6,6 @@ def setup_logger(name="dashboard"):
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
 
-    # ساخت مسیر logs اگر وجود نداشت
     os.makedirs("logs", exist_ok=True)
     handler = RotatingFileHandler("logs/dashboard.log", maxBytes=1000000, backupCount=3)
     

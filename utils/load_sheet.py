@@ -25,7 +25,6 @@ def authenticate_google_sheets():
 
     if not google_creds_object:
         logger.error("Secret 'GOOGLE_CREDENTIALS_JSON' not found in Streamlit secrets. Please configure it.")
-        st.error("Secret 'GOOGLE_CREDENTIALS_JSON' not found in Streamlit secrets.")
         st.stop()
         return None
 
@@ -35,7 +34,6 @@ def authenticate_google_sheets():
         creds_dict = dict(google_creds_object)
     except (TypeError, ValueError) as e:
         logger.error(f"Could not convert the 'GOOGLE_CREDENTIALS_JSON' secret into a dictionary. Type received: {type(google_creds_object).__name__}. Error: {e}")
-        st.info("Ensure the GOOGLE_CREDENTIALS_JSON secret in Streamlit Cloud is a valid JSON object or a TOML table.")
         st.stop()
         return None
 
@@ -46,7 +44,6 @@ def authenticate_google_sheets():
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
     elif "private_key" not in creds_dict:
         logger.error("The 'private_key' is missing from the 'GOOGLE_CREDENTIALS_JSON' secrets.")
-        st.error("Problem in secrets keys")
         st.stop()
         return None
     else: # private_key exists but is not a string
@@ -83,32 +80,56 @@ def load_data_from_sheet(client, spreadsheet_id, sheet_name):
 
         if not data:
             logger.warning(f"No data found in sheet '{sheet_name}' or sheet might be empty (contains only a header or is completely blank).")
-            st.warning(f"No data found in she")
             return pd.DataFrame() 
 
         df = pd.DataFrame(data)
         return df
 
     except gspread.exceptions.SpreadsheetNotFound:
-        st.error(f"Error: Spreadsheet with ID '{spreadsheet_id}' not found.")
-        st.info("Please check the SPREADSHEET_ID and ensure the service account (client_email from your secrets) has been granted at least 'Viewer' permission on the Google Sheet.")
+        logger(f"Error: Spreadsheet with ID '{spreadsheet_id}' not found.")
     except gspread.exceptions.WorksheetNotFound:
-        st.error(f"Error: Worksheet '{sheet_name}' not found in the spreadsheet. Check the sheet name for typos.")
+        logger(f"Error: Worksheet '{sheet_name}' not found in the spreadsheet. Check the sheet name for typos.")
     except gspread.exceptions.APIError as e:
-        st.error(f"Google Sheets API Error: {e}")
-        st.info("This could be due to permission issues (ensure service account has access to the sheet), incorrect sheet ID, or API quota limits.")
-        st.exception(e)
+        logger(f"Google Sheets API Error: {e}")
     except Exception as e:
-        st.error(f"An unexpected error occurred while loading data from the sheet: {e}")
-        st.exception(e)
+        logger(f"An unexpected error occurred while loading data from the sheet: {e}")
     return None # Return None in case of any error
 
+
+@st.cache_data(ttl=600, show_spinner=False)
 def load_sheet(SHEET_NAME='Data') -> pd.DataFrame:
     # Authenticate and get gspread client
     gs_client = authenticate_google_sheets()
 
     if gs_client:
-        logger.info("Successfully authenticated with Google Sheets!")
+
+        # Consider moving SPREADSHEET_ID to secrets for better practice
+        current_spreadsheet_id = st.secrets.get("SPREADSHEET_ID")['SPREADSHEET_ID']
+        if not current_spreadsheet_id:
+            logger.warning("SPREADSHEET_ID not found in Streamlit secrets. Using hardcoded ID.")
+        else:
+            current_spreadsheet_id = current_spreadsheet_id
+
+        if not current_spreadsheet_id: # Should not happen if hardcoded, but good check if from secrets
+            logger.error("SPREADSHEET_ID is missing. Cannot load data.")
+        else:
+            logger.info(f"Attempting to load data from Spreadsheet ID: {current_spreadsheet_id}, Sheet: {SHEET_NAME}")
+            with st.spinner(f"بارگذاری داده ها ..."):
+                df_main = load_data_from_sheet(gs_client, current_spreadsheet_id, SHEET_NAME)
+
+            if df_main is not None: # Check if df_main is not None (means no critical error during load)
+                if not df_main.empty:
+                    logger.info(f"Loaded {len(df_main)} rows and {len(df_main.columns)} columns.")
+                    return df_main
+                else:
+                    logger.info("The sheet was loaded, but it appears to be empty or contains only a header row.")
+
+
+def load_sheet_uncache(SHEET_NAME='Data') -> pd.DataFrame:
+    # Authenticate and get gspread client
+    gs_client = authenticate_google_sheets()
+
+    if gs_client:
 
         # Consider moving SPREADSHEET_ID to secrets for better practice
         current_spreadsheet_id = st.secrets.get("SPREADSHEET_ID")['SPREADSHEET_ID']
