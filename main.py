@@ -9,7 +9,6 @@ from teams.social import social
 from teams.sales import sales
 from teams.b2b import b2b
 
-
 # Constants
 DEFAULT_DAYS = 80
 COMMISSION_DASHBOARD = "داشبورد کمیسیون"
@@ -44,9 +43,10 @@ def map_team(name):
     elif name in ['دایرکت اینستاگرام', 'تلگرام(سوشال)', 'واتساپ(سوشال)']:
         return 'social'
     
-    elif name in ['تماس ورودی (مشتری)', 'چت واتس‌اپ', 'معرف', 'چت سایت',
-                 'چت تلگرام', 'پیامک فرم', 'تماس فرم سایت',
-                ]:
+    elif name in [
+        'تماس ورودی (مشتری)', 'چت واتس‌اپ', 'معرف', 'چت سایت',
+        'چت تلگرام', 'پیامک فرم', 'تماس فرم سایت',
+        ]:
         return 'sales'
     else:
         return 'others'
