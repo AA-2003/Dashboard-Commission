@@ -13,7 +13,7 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapi
 # It's better to get SPREADSHEET_ID from secrets as well,
 # but using the hardcoded one as per your provided code for now.
 
-SHEET_NAME = 'main'
+SHEET_NAME = 'Data'
 
 def authenticate_google_sheets():
     """
