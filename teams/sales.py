@@ -325,7 +325,8 @@ def display_member_details(df: pd.DataFrame, member_name: str):
     avg_value_million = (avg_value / 10 / 1_000_000)
 
     # Show metrics in columns
-    col1, col2, col3 = st.columns(3)
+    col0, col1, col2, col3 = st.columns(4)
+    col0.metric('مجموع ارزش معامله', f"{total_value:,.1f}")
     col1.metric('تعداد کل معاملات', f"{total_deals:,}")
     col2.metric('میانگین تعداد شب', f"{avg_nights:,}")
     col3.metric('میانگین ارزش معامله (میلیون تومان)', f"{avg_value_million:,.1f}")
