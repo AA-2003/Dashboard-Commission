@@ -4,15 +4,4 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "google-auth>=2.40.3",
-    "gspread>=6.2.1",
-    "jdatetime>=5.2.0",
-    "numpy>=2.3.1",
-    "openpyxl",
-    "pandas>=2.3.1",
-    "plotly>=6.2.0",
-    "python-dotenv>=1.1.1",
-    "pyyaml>=6.0.2",
-    "streamlit>=1.47.0",
-]
+dependencies = []
