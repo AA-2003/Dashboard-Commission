@@ -1,15 +1,10 @@
-from requests.exceptions import RequestException, HTTPError, Timeout
-from datetime import datetime, timedelta
-from utils.logging_config import setup_logger
-
-logger = setup_logger()
-
 import pandas as pd
 import requests
 import time
 import json 
 import streamlit as st
-
+from requests.exceptions import RequestException, HTTPError, Timeout
+from datetime import datetime, timedelta
 
 source_id_map = {
     "f074191f-7e1e-47bd-aea7-e4c9a8c077b7": "پلت‌فرم",
