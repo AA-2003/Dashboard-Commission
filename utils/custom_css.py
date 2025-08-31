@@ -5,7 +5,7 @@ def apply_custom_css():
         """
         <style>
         /* استفاده از فونت Tahoma برای همه‌ی متن‌ها و کوچکتر کردن اندازه فونت کلی */
-        html, body, div, span, input, textarea, label, select, button, p, h1, h2, h3, h4, h5, h6 {
+        html, body, div, input, textarea, label, select, button, p, h1, h2, h3, h4, h5, h6 {
             font-family: Tahoma, sans-serif !important;
             font-size: 16px !important;
         }
