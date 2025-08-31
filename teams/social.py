@@ -3,8 +3,8 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import jdatetime
-from utils.write_sheet import write_df_to_sheet
-from utils.load_sheet import load_sheet, load_sheet_uncache
+from utils.write_data import write_df_to_sheet
+from utils.load_data import load_sheet, load_sheet_uncache
 from utils.func import convert_df, convert_df_to_excel
 
 
@@ -175,38 +175,68 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
 
     deals_for_reward['checkout_jalali_str'] = deals_for_reward['checkout_jalali'].apply(lambda x: x.strftime('%Y/%m/%d'))
 
-    # --- Progress Gauge Visualization ---
-    gauge_fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=percent_of_target,
-        gauge={'axis': {'range': [0, 100]}, 'bar': {'color': "royalblue"}},
-        title={'text': "درصد تحقق تارگت"}
+    # --- Progress Pie Visualization ---
+    st.subheader("میزان پیشرفت ")
+    display_percentage = min(percent_of_target, 100.0)
+    fig = go.Figure()
+    fig.add_trace(go.Pie(
+        values=[display_percentage, 100 - display_percentage],
+        hole=.8,
+        marker_colors=['#00FF00' if display_percentage >= 100 else '#00FF00', '#E5ECF6'],
+        showlegend=False,
+        textinfo='none',
+        rotation=90,
+        pull=[0.1, 0]
     ))
-    st.plotly_chart(gauge_fig, use_container_width=True, key='gauge_plot')
+    fig.update_layout(
+        annotations=[
+            dict(text=f'{display_percentage:.1f}%', x=0.5, y=0.5, font_size=24, font_color='#2F4053', showarrow=False),
+            dict(text='تکمیل شده' if display_percentage >= 100 else 'در حال پیشرفت', x=0.5, y=0.35, font_size=14, font_color='#2E4053', showarrow=False)
+        ],
+        height=250,
+        margin=dict(l=20, r=20, t=20, b=20),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-    # --- Individual Reward Display ---
-    if user_filter:
-        selected_member = user_filter
-        st.markdown(f"#### پاداش شما ({selected_member})")
-    else: # Admin view with dropdown
-        sellers = deals_for_reward['deal_owner'].unique().tolist()
-        selected_member = st.selectbox("انتخاب کارشناس برای مشاهده پاداش:", sellers)
-
-    if selected_member:
-        member_deals = deals_for_reward[deals_for_reward['deal_owner'] == selected_member]
-        member_value = member_deals['deal_value'].sum() / 10
-        member_reward = member_value * reward_percent / 100
+    # --- Team Member Reward Table ---
+    if not deals_for_reward.empty and user_filter is None:
+        member_stats = (
+            deals_for_reward.groupby('deal_owner')
+            .agg(
+                تعداد_معامله=('deal_id', 'count'),
+                میزان_فروش=('deal_value', lambda x: x.sum() / 10)
+            )
+            .reset_index()
+        )
+        member_stats['پاداش'] = member_stats['میزان_فروش'] * reward_percent / 100
+        member_stats = member_stats.rename(columns={'deal_owner': 'کارشناس'})
+        st.markdown("#### جدول پاداش اعضای تیم")
+        st.dataframe(member_stats.style.format({'میزان_فروش': '{:,.0f}', 'پاداش': '{:,.0f}'}), use_container_width=True)
         
-        cols = st.columns(2)
-        cols[0].metric(f'میزان فروش {selected_member}', value=f'{member_value:,.0f} تومان')
-        cols[1].metric(f'💰 میزان پاداش {selected_member}', value=f'{member_reward:,.0f} تومان')
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                label="دانلود داده‌ها به صورت CSV",
+                data=convert_df(member_stats),
+                file_name='team-reward.csv',
+                mime='text/csv',
+            )
+        with col2:
+            st.download_button(
+                label="دانلود داده‌ها به صورت اکسل",
+                data=convert_df_to_excel(member_stats),
+                file_name='team-reward.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
 
-        with st.expander('جزئیات معامله ها', False):
-            data_to_write = member_deals[[
+        with st.expander('جزئیات معاملات برای پاداش'):
+            st.write(deals_for_reward[[
                 'deal_id', 'deal_title', 'deal_value', 'deal_done_date',
                 'deal_created_date', 'deal_owner', 'deal_source', 'Customer_id',
                 'checkout_date', 'checkout_jalali_str'
-                ]].rename(columns={
+            ]].rename(columns={
                 'deal_id': 'شناسه معامله',
                 'deal_title': 'عنوان معامله',
                 'deal_value': 'مبلغ معامله',
@@ -217,7 +247,56 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                 'Customer_id': 'شناسه مشتری',
                 'checkout_date': 'تاریخ خروج',
                 'checkout_jalali_str': 'تاریخ خروج (شمسی)'
-                })
+            }))
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button(
+                    label="دانلود داده‌ها به صورت CSV",
+                    data=convert_df(deals_for_reward),
+                    file_name='deals-for-reward.csv',
+                    mime='text/csv',
+                )
+            with col2:
+                st.download_button(
+                    label="دانلود داده‌ها به صورت اکسل",
+                    data=convert_df_to_excel(deals_for_reward),
+                    file_name='deals-for-reward.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                )
+    # --- Individual Reward Display ---
+    if user_filter:
+        selected_member = user_filter
+        st.markdown(f"#### پاداش شما ({selected_member})")
+    else:  # Admin view with dropdown
+        sellers = deals_for_reward['deal_owner'].unique().tolist()
+        selected_member = st.selectbox("انتخاب کارشناس برای مشاهده پاداش:", sellers)
+
+    if selected_member:
+        member_deals = deals_for_reward[deals_for_reward['deal_owner'] == selected_member]
+        member_value = member_deals['deal_value'].sum() / 10
+        member_reward = member_value * reward_percent / 100
+
+        cols = st.columns(2)
+        cols[0].metric(f'میزان فروش {selected_member}', value=f'{member_value:,.0f} تومان')
+        cols[1].metric(f'💰 میزان پاداش {selected_member}', value=f'{member_reward:,.0f} تومان')
+
+        with st.expander(f'جزئیات معامله های {selected_member}', False):
+            data_to_write = member_deals[[
+                'deal_id', 'deal_title', 'deal_value', 'deal_done_date',
+                'deal_created_date', 'deal_owner', 'deal_source', 'Customer_id',
+                'checkout_date', 'checkout_jalali_str'
+            ]].rename(columns={
+                'deal_id': 'شناسه معامله',
+                'deal_title': 'عنوان معامله',
+                'deal_value': 'مبلغ معامله',
+                'deal_done_date': 'تاریخ انجام معامله',
+                'deal_created_date': 'تاریخ ایجاد معامله',
+                'deal_owner': 'کارشناس',
+                'deal_source': 'کانال فروش',
+                'Customer_id': 'شناسه مشتری',
+                'checkout_date': 'تاریخ خروج',
+                'checkout_jalali_str': 'تاریخ خروج (شمسی)'
+            })
             st.write(data_to_write)
             col1, col2 = st.columns(2)
             with col1:
@@ -235,8 +314,10 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 )
 
-# --- Main App Function ---
 
+
+
+# ----------- Main App Function -----------
 def social():
     """Main function to render the Social team dashboard Streamlit page."""
     st.title("📊 داشبورد تیم Social")
@@ -247,16 +328,16 @@ def social():
         st.stop()
 
     role = st.session_state.role
-    username = st.session_state.username
     name = st.session_state.name
     is_manager = role in ["admin", "manager"]
     st.write(f"{name} عزیز خوش آمدی 😃")  
 
     # --- 2. Data Loading and Pre-processing ---
     data = st.session_state['data']
-    data = data[data['team'] == 'social'].copy()
+    data = data[data['deal_source'].isin(['دایرکت اینستاگرام', 'تلگرام(سوشال)', 'واتساپ(سوشال)'])].copy()
+
     data['deal_owner'] = data['deal_owner'].apply(normalize_owner)
-    
+    data = data[~data['deal_owner'].isin(['', 'نامشخص', 'Han Rez', 'بابک  مسعودی'])]
     # For rewards, we need Jalali dates based on the checkout_date
     data['checkout_jalali'] = data['checkout_date'].apply(safe_to_jalali)
     data['checkout_jalali_year_month'] = data['checkout_jalali'].apply(lambda d: f"{d.year}-{d.month:02d}")
@@ -284,7 +365,7 @@ def social():
             render_settings_tab(parameters)
     else:
         # Regular User View - Filter data to only this user
-        render_dashboard(data, shift_sheet, parameters, user_filter=username)
+        render_dashboard(data, shift_sheet, parameters, user_filter=name)
 
 def render_dashboard(deals_data: pd.DataFrame, shift_data: pd.DataFrame, parameters: dict, user_filter: str = None):
     """
@@ -307,6 +388,16 @@ def render_dashboard(deals_data: pd.DataFrame, shift_data: pd.DataFrame, paramet
     ]
     monthly_shifts = shift_data[shift_data['jalali_year_month'] == target_month]
 
+        
+    # Display the reward section for the chosen month's CHECKOUT dates
+    deals_for_reward = deals_data[
+        (deals_data['checkout_jalali_year_month'] == target_month)&
+        (deals_data['deal_type']=='New Sale')
+    ].reset_index(drop=True)
+
+    display_reward_section(deals_for_reward, parameters, user_filter=user_filter)
+
+    st.divider()
     st.subheader("عملکرد کلی تیم")
     display_metrics(monthly_deals, monthly_shifts)
     plot_daily_trend(
@@ -424,25 +515,21 @@ def render_dashboard(deals_data: pd.DataFrame, shift_data: pd.DataFrame, paramet
         with st.expander('شیفت های شما'):
             st.write(filtered_shifts)
 
-    st.divider()
-    
-    # Display the reward section for the chosen month's CHECKOUT dates
-    deals_for_reward = deals_data[
-        (deals_data['checkout_jalali_year_month'] == target_month)&
-        (deals_data['deal_type']=='New Sale')
-    ].reset_index(drop=True)
-
-    display_reward_section(deals_for_reward, parameters, user_filter=user_filter)
-
 def render_settings_tab(parameters: dict):
     """Renders the settings form for updating reward parameters."""
     with st.form('social_team_parameters_form'):
         st.subheader("⚙️ تنظیم پارامترهای پاداش")
+
+        st.metric('تارگت فعلی:', f"{int(parameters.get('target', 0)):,.0f} تومان")
         
-        target = st.number_input(
-            label="🎯 تارگت فروش ماه (بر اساس تاریخ خروج و به تومان)",
+        record = st.number_input(
+            label="🏅 رکورد فروش ماه (بر اساس تاریخ خروج و به تومان)",
             step=1_000_000,
-            value=int(parameters.get('target', 0))
+            value=int(parameters.get('record', 0))
+        )
+        record_month = st.text_input(
+            label="📅 ماه رکورد",
+            value=parameters.get('record_month', 0)
         )
         grow_percent = st.number_input(
             label="📈 درصد پاداش در صورت رسیدن به تارگت",
@@ -458,7 +545,13 @@ def render_settings_tab(parameters: dict):
         )
         
         if st.form_submit_button('ذخیره تغییرات'):
-            df = pd.DataFrame([{"target": target, "grow_percent": grow_percent, "normal_percent": normal_percent}])
+            df = pd.DataFrame([{
+                "target": int(parameters.get('target', 0)),
+                "grow_percent": grow_percent,
+                "normal_percent": normal_percent,
+                "record": record,
+                "record_month": record_month
+                }])
             if write_df_to_sheet(df, sheet_name='Social team parameters'):
                 st.success("پارامترها با موفقیت به‌روزرسانی شد.")
                 st.rerun()

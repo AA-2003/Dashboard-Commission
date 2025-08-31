@@ -1,9 +1,7 @@
 from requests.exceptions import RequestException, HTTPError, Timeout
 from datetime import datetime, timedelta
-from utils.logging_config import setup_logger
-logger = setup_logger()
+
 import pandas as pd
-import numpy as np
 import requests
 import time
 import json 
@@ -83,7 +81,7 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     try:
-        logger.info("Start preprocessing loaded data")
+        print("Start preprocessing loaded data")
 
         columns = df.columns
 
@@ -125,12 +123,12 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
         else:
             KeyError("Column deal_value not found in the data.")
 
-        logger.info(f"Data preprocessed successfully. Final shape: {df.shape}")
+        print(f"Data preprocessed successfully. Final shape: {df.shape}")
 
         return df.reset_index(drop=True)
 
     except Exception as e:
-        logger.error(f"Error loading data: {e}")
+        print(f"Error loading data: {e}")
         raise 
 
 
@@ -179,7 +177,7 @@ def load_data(start_date: str = None, end_date: str = None, WON: bool = False) -
         ConnectionError: If a chunk fails to be fetched after multiple retries.
         ValueError: If the API response structure is unexpected or no data is found at all.
     """
-    logger.info("Start loading data")
+    print("Start loading data")
     
     # Get API key from environment variables
     API_KEY = st.secrets.get("DIDAR_API_KEY")['DIDAR_API_KEY'] 
@@ -285,12 +283,12 @@ def load_data(start_date: str = None, end_date: str = None, WON: bool = False) -
             row[header] = value
         rows.append(row)
     df = pd.DataFrame(rows)
-    logger.info(f"Data loaded successfully with {len(df)} records.")
+    print(f"Data loaded successfully with {len(df)} records.")
     try:
         preprocess(df)
         return df
     except Exception as e:
-        logger.error(f"Error during preprocessing: {e}")
+        print(f"Error during preprocessing: {e}")
         raise
 
 

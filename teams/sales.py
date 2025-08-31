@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import jdatetime
-from utils.write_sheet import write_df_to_sheet
-from utils.load_sheet import load_sheet, load_sheet_uncache
+from utils.write_data import write_df_to_sheet
+from utils.load_data import load_sheet, load_sheet_uncache, get_sheet_names
+from utils.func import convert_df, convert_df_to_excel
 
 # --- Data Transformation & Calculation Functions ---
-
 @st.cache_data(ttl=600)
 def safe_to_jalali(x):
     """
@@ -20,10 +21,11 @@ def normalize_owner(owner: str) -> str:
     Merges different names for the same person into a single, consistent name.
     Specifically handles day/night shifts for 'محمد آبساران'.
     """
-    if owner in ["محمد آبساران/روز", "محمد آبساران/شب"]:
+    if owner in ["محمد آبساران/شب"]:
         return "محمد آبساران"
     return owner
 
+@st.cache_data(ttl=6000)
 def cal_wolfs(df: pd.DataFrame, target_month: str) -> tuple[pd.DataFrame, dict]:
     """
     Calculates the 'Wolf of Wall Street' scores for each deal owner for the current Jalali month.
@@ -104,7 +106,7 @@ def load_sherlock_data(target_month: str) -> pd.DataFrame:
     Returns:
         A DataFrame with 'deal_owner' and 'score', sorted by score.
     """
-    sherlock_df = load_sheet('Sherlock')
+    sherlock_df = load_sheet_uncache('Sherlock')
     sherlock_df['Date'] = pd.to_datetime(sherlock_df['Date'])
     sherlock_df['jalali_date'] = sherlock_df['Date'].apply(lambda x: jdatetime.date.fromgregorian(date=x.date()))
     sherlock_df['jalali_year_month'] = sherlock_df['jalali_date'].apply(lambda d: f"{d.year}-{d.month:02d}")
@@ -118,11 +120,15 @@ def load_sherlock_data(target_month: str) -> pd.DataFrame:
     scores = {}
     # Iterate through each day to assign points
     for _, group in sherlock_df.groupby('Date'):
-        if group['First person'].iat[0] == '': continue
+        if group['First person'].iat[0] == '':
+            continue
         
-        for p in group['First person'].dropna(): scores[p] = scores.get(p, 0) + 10
-        for p in group['Second person'].dropna(): scores[p] = scores.get(p, 0) + 5
-        for p in group['Last person'].dropna(): scores[p] = scores.get(p, 0) - 3
+        for p in group['First person'].dropna():
+            scores[p] = scores.get(p, 0) + 10
+        for p in group['Second person'].dropna():
+            scores[p] = scores.get(p, 0) + 5
+        for p in group['Last person'].dropna():
+            scores[p] = scores.get(p, 0) - 3
 
     # Map nicknames to full names for consistency
     name_map = {
@@ -146,7 +152,13 @@ def load_sherlock_data(target_month: str) -> pd.DataFrame:
     result_df = pd.DataFrame(list(mapped_scores.items()), columns=['deal_owner', 'score'])
     return result_df.sort_values('score', ascending=False).reset_index(drop=True)
 
-def calculate_reward_details(reward_amount: float, wolf_board: pd.DataFrame, sherlock_board: pd.DataFrame, parameters: dict, team_members_names: list) -> pd.DataFrame:
+def calculate_reward_details(
+        reward_amount: float,
+        wolf_board: pd.DataFrame,
+        sherlock_board: pd.DataFrame,
+        parameters: dict,
+        team_members_names: list
+    ) -> pd.DataFrame:
     """
     Calculates the detailed reward breakdown for each team member.
 
@@ -244,10 +256,8 @@ def calculate_reward_details(reward_amount: float, wolf_board: pd.DataFrame, she
 
     return member_stats
 
-
 # --- UI Display Functions ---
-
-def display_team_metrics(df: pd.DataFrame, parameters: dict) -> float:
+def display_team_metrics(df: pd.DataFrame, parameters: dict, is_manager: bool = False) -> float:
     """
     Displays the main team-wide KPI metrics (Target, Total Sales, Deal Count) and progress.
 
@@ -258,50 +268,136 @@ def display_team_metrics(df: pd.DataFrame, parameters: dict) -> float:
     target = float(parameters.get('Target', 0))
     reward_percent = float(parameters.get('Reward percent', 0))
     
-    # The division by 10 might be to convert Rials to Tomans or correct for an extra zero.
+    # Vertical metrics for each sale type
+    col1, col2 = st.columns(2)
+
+    for sale_type in df['deal_type'].unique().tolist():
+        df_ = df[df['deal_type'] == sale_type].copy()
+        if sale_type == 'New Sale':
+            col = col1
+            col.subheader('فروش جدید')
+        else:
+            col = col2
+            col.subheader('تمدید')
+
+        total_deals = len(df_)
+        total_nights = df_['product_quantity'].sum()
+        total_value = df_['deal_value'].sum() / 10
+        avg_nights = round(total_nights / total_deals, 1) if total_deals > 0 else 0
+        avg_value = round(total_value / total_deals, 1) if total_deals > 0 else 0
+
+        # Show metrics vertically
+        col.metric('مجموع فروش', f"{total_value:,.1f} تومان")
+        col.metric('تعداد کل معاملات', f"{total_deals:,}")
+        col.metric('میانگین تعداد شب', f"{avg_nights:,}")
+        col.metric('میانگین ارزش معامله', f"{avg_value:,.1f} تومان")
+
+    st.markdown('---')
+
     total_sales = df['deal_value'].sum() / 10
-    deals_count = df.shape[0]
-    
     diff = total_sales - target
     reward_amount = max(0, diff) * reward_percent / 100
+    progress_percentage = (total_sales / target) * 100 if target > 0 else 0
+    remaining = target - total_sales
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🎯 تارگت این ماه:", f'{target:,.0f} تومان')
-    col2.metric("💵 مجموع فروش:", f"{total_sales:,.0f} تومان")
-    col3.metric("🔢 تعداد معاملات:", deals_count)
 
-    if reward_amount > 0:
-        st.success(f"🏆 پاداش کل تیم: {reward_amount:,.0f} تومان")
-    else:
-        progress_percentage = (total_sales / target) * 100 if target > 0 else 0
-        remaining = target - total_sales
-        st.info(f"📈 {progress_percentage:.1f}% از تارگت محقق شده است.")
-        st.warning(f"⏳ باقیمانده تا رسیدن به تارگت: {remaining:,.0f} تومان")
+    col1, col2 = st.columns(2)
+    with col1: 
+        if reward_amount > 0:
+            st.metric("کل فروش ", f"{total_sales:,.0f} تومان")
+            st.metric("تارگت ", f"{target:,.0f} تومان")
+            st.success(f"🏆 پاداش کل تیم: {reward_amount:,.0f} تومان")
+        else:
+            st.metric("تارگت ", f"{target:,.0f} تومان")
+            st.warning(f"⏳ باقیمانده تا رسیدن به تارگت: {remaining:,.0f} تومان")
+            st.info(f"🎯 {100 - progress_percentage:.1f}% تا رسیدن به تارگت ")
+
+    with col2:
+        st.subheader("میزان پیشرفت")
+        display_percentage = min(progress_percentage, 100.0)
+        fig = go.Figure()
+        fig.add_trace(go.Pie(
+            values=[display_percentage, 100-display_percentage],
+            hole=.8,
+            marker_colors=['#00FF00' if display_percentage >= 100 else '#00FF00', '#E5ECF6'],
+            showlegend=False,
+            textinfo='none',
+            rotation=90,
+            pull=[0.1, 0]
+        ))
+        fig.update_layout(
+            annotations=[
+                dict(text=f'{display_percentage:.1f}%', x=0.5, y=0.5, font_size=24, font_color='#2F4053', showarrow=False),
+                dict(text='تکمیل شده' if display_percentage >= 100 else 'در حال پیشرفت', x=0.5, y=0.35, font_size=14, font_color='#2E4053', showarrow=False)
+            ],
+            height=250,
+            margin=dict(l=20, r=20, t=20, b=20),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig, use_container_width=True)
     
     return reward_amount
 
-def display_daily_deals_chart(df: pd.DataFrame, title: str):
-    """Displays a line chart of the number of deals per day."""
-    st.subheader(title)
+def display_daily_deals_chart(df: pd.DataFrame, member: str):
+    """Displays a line chart of the number of deals per day or a bar chart of sales per day."""
     if df.empty:
-        st.info("داده‌ای برای نمایش نمودار وجود ندارد.")
         return
-        
-    deals_per_day = df.groupby('deal_created_date').size().reset_index(name='deals_count')
-    deals_per_day['تاریخ شمسی'] = deals_per_day['deal_created_date'].apply(safe_to_jalali)
+    col1, col2 = st.columns([1,3])
 
-    y_max = deals_per_day['deals_count'].max()
-    y_max_limit = 1 if pd.isna(y_max) else int(y_max * 1.15) + 1
-    
-    fig = px.line(
-        deals_per_day, x='deal_created_date', y='deals_count',
-        markers=True, labels={'deal_created_date': 'تاریخ', 'deals_count': 'تعداد معاملات'},
-        hover_data=['تاریخ شمسی']
-    )
-    fig.update_layout(
-        template='plotly_white', yaxis=dict(range=[0, y_max_limit])
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    with col1:
+        plot_type = st.radio(
+            options=['تعداد معاملات ', 'میزان فروش '],
+            label='',
+            key=f'sales_plot_type_selectbox{member}'
+        )
+
+    with col2:
+        if plot_type == 'میزان فروش ':
+            if member:
+                st.subheader(f"💹 میزان فروش روزانه {member}")
+            else:
+                st.subheader("💹 میزان فروش روزانه تیم")
+
+            if 'deal_value' in df.columns:
+                value_per_day = df.groupby('deal_created_date')['deal_value'].sum().reset_index()
+                value_per_day['تاریخ شمسی'] = value_per_day['deal_created_date'].apply(safe_to_jalali)
+                fig2 = px.line(
+                    value_per_day, x='deal_created_date', y='deal_value',
+                    labels={'deal_created_date': 'تاریخ', 'deal_value': 'مجموع ارزش معاملات'},
+                    hover_data=['تاریخ شمسی'],
+                    # text_auto=True
+                )
+                fig2.update_layout(
+                    template='plotly_white',
+                    yaxis_title='مجموع ارزش معاملات',
+                    xaxis_title='تاریخ'
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("ستون 'deal_value' در داده‌ها وجود ندارد.")
+
+        else:
+            if member:
+                st.subheader(f"📈 تعداد معاملات روزانه {member}")
+            else:
+                st.subheader("📈 تعداد معاملات روزانه تیم")
+
+            deals_per_day = df.groupby('deal_created_date').size().reset_index(name='deals_count')
+            deals_per_day['تاریخ شمسی'] = deals_per_day['deal_created_date'].apply(safe_to_jalali)
+
+            y_max = deals_per_day['deals_count'].max()
+            y_max_limit = 1 if pd.isna(y_max) else int(y_max * 1.15) + 1
+
+            fig = px.line(
+                deals_per_day, x='deal_created_date', y='deals_count',
+                markers=True, labels={'deal_created_date': 'تاریخ', 'deals_count': 'تعداد معاملات'},
+                hover_data=['تاریخ شمسی']
+            )
+            fig.update_layout(
+                template='plotly_white', yaxis=dict(range=[0, y_max_limit])
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 def display_member_details(df: pd.DataFrame, member_name: str):
     """
@@ -309,37 +405,57 @@ def display_member_details(df: pd.DataFrame, member_name: str):
     a daily deals chart, and a list of their recent deals.
     """
     st.subheader(f"👤 آمار عملکرد {member_name}")
-    member_deals = df[df['deal_owner'] == member_name]
+    member_deals = df[df['deal_owner'] == member_name].reset_index(drop=True)
 
     if member_deals.empty:
         st.info(f"داده‌ای برای نمایش آمار {member_name} در این ماه وجود ندارد.")
         return
+    col1, col2 = st.columns(2)
 
-    # Calculate per-member metrics
-    total_deals = len(member_deals)
-    total_nights = member_deals['product_quantity'].sum()
-    total_value = member_deals['deal_value'].sum()
-    avg_nights = round(total_nights / total_deals, 1) if total_deals > 0 else 0
-    avg_value = round(total_value / total_deals, 1) if total_deals > 0 else 0
-    # Assuming deal_value is in Rials and we want to display millions of Tomans
-    avg_value_million = (avg_value / 10 / 1_000_000)
+    for sale_type in df['deal_type'].unique().tolist():
+        df_ = member_deals[member_deals['deal_type'] == sale_type].copy()
+        if sale_type == 'New Sale':
+            col = col1
+            col.subheader('فروش جدید')
+        else:
+            col = col2
+            col.subheader('تمدید')
+        # Calculate per-member metrics
+        total_deals = len(df_)
+        total_nights = df_['product_quantity'].sum()
+        total_value = df_['deal_value'].sum()/ 10
+        avg_nights = round(total_nights / total_deals, 1) if total_deals > 0 else 0
+        avg_value = round(total_value / total_deals, 1) if total_deals > 0 else 0        
 
-    # Show metrics in columns
-    col0, col1, col2, col3 = st.columns(4)
-    col0.metric('مجموع ارزش معامله', f"{total_value:,.1f}")
-    col1.metric('تعداد کل معاملات', f"{total_deals:,}")
-    col2.metric('میانگین تعداد شب', f"{avg_nights:,}")
-    col3.metric('میانگین ارزش معامله (میلیون تومان)', f"{avg_value_million:,.1f}")
+        # Show metrics
+        col.metric('مجموع ارزش معامله', f"{total_value:,.1f} تومان")
+        col.metric('تعداد کل معاملات', f"{total_deals:,}")
+        col.metric('میانگین تعداد شب', f"{avg_nights:,}")
+        col.metric('میانگین ارزش معامله', f"{avg_value:,.1f} تومان")
 
     # Display charts and data for the member
-    display_daily_deals_chart(member_deals, f'📅 تعداد معاملات روزانه {member_name}')
+    display_daily_deals_chart(member_deals, member_name)
     
-    st.markdown(f"### 📋 لیست معاملات {member_name}")
-    st.dataframe(member_deals, use_container_width=True, hide_index=True)
+    with st.expander(f"### 📋 لیست معاملات {member_name}", expanded=False):
+        st.dataframe(member_deals, use_container_width=True, hide_index=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                label="دانلود داده‌ها به صورت CSV",
+                data=convert_df(member_deals),
+                file_name=f'deals{member_name}.csv',
+                mime='text/csv',
+            )
+        with col2:
+            st.download_button(
+                label="دانلود داده‌ها به صورت اکسل",
+                data=convert_df_to_excel(member_deals),
+                file_name=f'deals{member_name}.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
 
 
 # --- Main App Function ---
-
 def sales():
     """Main function to render the Sales team dashboard Streamlit page."""
     st.title("📊 داشبورد تیم Sales")
@@ -356,7 +472,7 @@ def sales():
     
     # Define team members
     team_members = [
-        "پویا  ژیانی", "محمد آبساران/روز", "محمد آبساران/شب", "زینب فلاح نژاد", "پویا وزیری",
+        "پویا  ژیانی", "محمد آبساران/شب", "زینب فلاح نژاد", "پویا وزیری",
         "پوریا کیوانی", "بابک  مسعودی", "حسین  طاهری", "فرشته فرج نژاد", "حافظ قاسمی", "آرمین مربی"
     ]
     team_members_names = [
@@ -365,13 +481,17 @@ def sales():
     ]
 
     # --- 2. Data Loading and Pre-processing ---
-    # Load data and filter for the sales team
-    data = st.session_state['data']
-    data = data[(data['deal_owner'].isin(team_members)) & (data['team'] == 'sales')].copy()
-    data['deal_owner'] = data['deal_owner'].apply(normalize_owner)
-    data['deal_created_date'] = pd.to_datetime(data['deal_created_date']).dt.date
-    data['jalali_date'] = data['deal_created_date'].apply(safe_to_jalali)
-    data['jalali_year_month'] = data['jalali_date'].apply(lambda d: f"{d.year}-{d.month:02d}")
+    @st.cache_data(ttl=600)
+    def load_and_prepare_sales_data(raw_data, team_members):
+        # Filter for the sales team and normalize owner names - filter only memebrs - deal source is all
+        data = raw_data[(raw_data['deal_owner'].isin(team_members))].copy()
+        data['deal_owner'] = data['deal_owner'].apply(normalize_owner)
+        data['deal_created_date'] = pd.to_datetime(data['deal_created_date']).dt.date
+        data['jalali_date'] = data['deal_created_date'].apply(safe_to_jalali)
+        data['jalali_year_month'] = data['jalali_date'].apply(lambda d: f"{d.year}-{d.month:02d}")
+        return data
+
+    data = load_and_prepare_sales_data(st.session_state['data'], team_members)
 
     # --- 3. Month Selection Filter ---
     month_choose = st.selectbox(
@@ -389,15 +509,40 @@ def sales():
         
     # Filter main DataFrame for the selected month and deal type
     df_filtered = data[
-        (data['jalali_year_month'] == target_month_str) &
-        (data['deal_type'] == 'New Sale')
+        (data['jalali_year_month'] == target_month_str) 
+        # (data['deal_type'] == 'New Sale')
     ]
     st.info(f'نمایش آمار برای ماه: {target_month_str}')
 
-        # Calculate leaderboards and load parameters
+    def find_eval_sheet(target_month, sheet_names):
+        year, month = target_month.split('-')
+        month_names = {
+            '01':'فروردین',
+            '02':'اردیبهشت',
+            '03':'خرداد',
+            '04':'تیر',
+            '05':'مرداد',
+            '06':'شهریور',
+            '07':'مهر',
+            '08':'آبان',
+            '09':'آذر',
+            '10':'دی',
+            '11':'بهمن',
+            '12':'اسفند'
+        }
+        month_name = month_names.get(month, None)
+    
+        sheet_name = [sheet for sheet in sheet_names if month_name in sheet and (year in sheet or year[1:] in sheet) ]
+        return sheet_name[0]
+
+    # Calculate leaderboards and load parameters
     wolf_board, wolf_first_persons = cal_wolfs(data.copy(), target_month_str)
     sherlock_board = load_sherlock_data(target_month_str)
     parametrs_df = load_sheet_uncache('Sales team parameters')
+    eval_sheet_names = get_sheet_names('EVAL')
+    eval_sheet = find_eval_sheet(target_month_str, eval_sheet_names)
+
+    eval_parametrs = load_sheet(SHEET_NAME=eval_sheet, spreadsheet='EVAL')
 
     # Ensure parameters are loaded into a dictionary with default values
     default_params = {
@@ -414,26 +559,66 @@ def sales():
         tabs = st.tabs(['صفحه اصلی', 'گرگ وال استریت', 'شرلوک', 'تنظیمات'])
         
         with tabs[0]: # Main Tab
-            reward_amount = display_team_metrics(df_filtered, parametrs)
-            display_daily_deals_chart(df_filtered, 'تعداد کل معاملات روزانه تیم')
-            st.divider()
+            reward_amount = display_team_metrics(df_filtered, parametrs, is_manager)
 
-            selected_member = st.selectbox("انتخاب کارشناس:", team_members_names)
-            display_member_details(df_filtered, selected_member)
+            with st.expander('📋 لیست معاملات تیم', expanded=False):
+                st.dataframe(df_filtered, use_container_width=True, hide_index=True)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.download_button(
+                        label="دانلود داده‌ها به صورت CSV",
+                        data=convert_df(df_filtered),
+                        file_name='deals.csv',
+                        mime='text/csv',
+                    )
+                with col2:
+                    st.download_button(
+                        label="دانلود داده‌ها به صورت اکسل",
+                        data=convert_df_to_excel(df_filtered),
+                        file_name='deals.xlsx',
+                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    )
 
             if reward_amount > 0:
                 reward_details_df = calculate_reward_details(reward_amount, wolf_board, sherlock_board, parametrs, team_members_names)
+
+                with st.expander("💰 جزئیات پاداش اعضا", expanded=False):
+                    st.dataframe(reward_details_df, use_container_width=True, hide_index=True)
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button(
+                            label="دانلود داده‌ها به صورت CSV",
+                            data=convert_df(reward_details_df),
+                            file_name='rewards.csv',
+                            mime='text/csv',
+                        )
+                    with col2:
+                        st.download_button(
+                            label="دانلود داده‌ها به صورت اکسل",
+                            data=convert_df_to_excel(reward_details_df),
+                            file_name='rewards.xlsx',
+                            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    )
+            
+            display_daily_deals_chart(df_filtered, None)
+            st.divider()
+
+            selected_member = st.selectbox("انتخاب کارشناس:", team_members_names, key='member_select_box')
+            
+            display_member_details(df_filtered, selected_member)
+
+            if reward_amount > 0:
                 member_reward_row = reward_details_df[reward_details_df['کارشناس'] == selected_member]
                 st.markdown(f"### 💰 میزان پاداش {selected_member}")
                 st.dataframe(member_reward_row, use_container_width=True, hide_index=True)
 
         with tabs[1]: # Wolf Tab
-            st.markdown("### 🐺 جدول امتیاز گرگ‌های وال‌استریت (ماه جاری)")
+            st.markdown("### 🐺 جدول امتیاز گرگ‌های وال‌استریت")
             st.dataframe(wolf_board.rename(columns={"deal_owner": "شخص", "score": "امتیاز"}), use_container_width=True, hide_index=True)
             
-            st.markdown("### 👑 تعداد دفعات اول شدن هر شخص (ماه جاری)")
+            st.markdown("### 👑 تعداد دفعات اول شدن هر شخص")
             if wolf_first_persons:
-                wolf_first_df = pd.DataFrame(list(wolf_first_persons.items()), columns=["مالک", "تعداد اول شدن"]).sort_values("تعداد اول شدن", ascending=False)
+                wolf_first_df = pd.DataFrame(list(wolf_first_persons.items()), columns=["شخص", "تعداد"]).sort_values("تعداد", ascending=False)
                 st.dataframe(wolf_first_df, use_container_width=True, hide_index=True)
             else:
                 st.info("هنوز کسی در این ماه اول نشده است.")
@@ -493,6 +678,33 @@ def sales():
                 member_percents = {}
                 with st.expander("👥 درصد عملکرد اعضای تیم", expanded=True):
                     st.markdown("""درصد عملکرد هر عضو تیم را وارد کنید:""", unsafe_allow_html=True)
+
+                    eval_names_map = {
+                        'پویا  ژیانی':'پویا(شب)',
+                        'محمد آبساران':'محمد آبساران',
+                        'زینب فلاح نژاد':'زینب ',
+                        'پویا وزیری':'پویا وزیری ',
+                        'پوریا کیوانی':'پوریا',
+                        'بابک  مسعودی':'بابک',
+                        'حسین  طاهری':'حسین',
+                        'فرشته فرج نژاد':'فرشته',
+                        'حافظ قاسمی':'حافظ',
+                        'آرمین مربی':'آرمین',
+                    }
+                    def find_percent(eval_parametrs, team_members_names, parametrs):
+                        for member in team_members_names:
+                            percent_key = f'{member}_percent'
+                            col = eval_names_map.get(member, None)
+                            if col:
+                                value = eval_parametrs.loc[
+                                    eval_parametrs['KPI']=='درصد پاداش ناخالص بدون کسر35% ',
+                                    col].astype(str).str.replace('%','').astype(float).values[0]
+                            else:
+                                value = 0
+                            parametrs[percent_key] = value
+                        return parametrs
+                    parametrs = find_percent(eval_parametrs, team_members_names, parametrs)
+
                     n = len(team_members_names)
                     n_cols = 4 if n >= 8 else 2  # More columns for larger teams
                     rows = [team_members_names[i:i+n_cols] for i in range(0, n, n_cols)]
@@ -517,8 +729,9 @@ def sales():
                     # Validate that main percents sum to 100
                     if sum([wolf1_percent, wolf2_percent, sherlock_percent, performance_percent]) != 100:
                         st.warning("جمع درصد های اصلی (گرگ‌ها، شرلوک، عملکرد) باید دقیقا 100 باشد!")
-                    # Validate that member percents sum to 100 (allowing for float rounding)
-                    elif abs(sum(member_percents.values()) - 100) > 0.01:
+                    # Validate that member percents sum to 100 
+                    elif abs(sum(member_percents.values()) - 100) > 0.1:
+                        st.write(sum(member_percents.values()))
                         st.warning("جمع درصد عملکرد اعضا باید دقیقا 100 باشد!")
                     else:
                         # Combine main parameters and member percents into one dictionary
@@ -542,7 +755,7 @@ def sales():
 
 
     else:
-        # Regular User View (No Tabs)
+        # User View
         reward_amount = display_team_metrics(df_filtered, parametrs)
         st.divider()
         

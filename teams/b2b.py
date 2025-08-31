@@ -1,3 +1,4 @@
+from pandas.io.pytables import dropna_doc
 import streamlit as st
 from datetime import datetime, timedelta
 import pandas as pd
@@ -5,10 +6,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 import jdatetime
 import numpy as np
+from utils.func import convert_df, convert_df_to_excel
+
 
 def calculate_weekly_metrics(data, start_date, end_date):
     """Calculate weekly metrics for given data and date range"""
-    mask = (data['deal_done_date'].dt.date >= start_date) & (data['deal_done_date'].dt.date <= end_date)
+    mask = (data['deal_created_date'].dt.date >= start_date) & (data['deal_created_date'].dt.date <= end_date)
     count = data[mask].shape[0]
     value = data[mask]['deal_value'].sum()
     avg = value / count if count > 0 else 0
@@ -36,6 +39,15 @@ def display_metrics(col, metrics):
             value = 0
         st.metric(label, f"{value:,.0f}{suffix}")
 
+def normalize_owner(owner: str) -> str:
+    """
+    Merges different names for the same person into a single, consistent name.
+    Specifically handles day/night shifts for 'محمد آبساران'.
+    """
+    if owner in ["محمد آبساران/روز"]:
+        return "محمد آبساران"
+    return owner
+
 def b2b():
     """B2B team dashboard with optimized metrics and visualizations"""
     st.title("📊 داشبورد تیم B2B")
@@ -44,23 +56,24 @@ def b2b():
         st.error("لطفا ابتدا وارد سیستم شوید")
         return
 
-    # Initialize data and variables
     role = st.session_state.role
     username = st.session_state.username
     name = st.session_state.name
     st.write(f"{name} عزیز خوش آمدی😃")
     
-    # Process data
-    filter_data = st.session_state.data[st.session_state.data['team'] == 'b2b'].copy()
-    filter_data['deal_done_date'] = pd.to_datetime(filter_data['deal_done_date'])
+    # filter data
+    data = st.session_state.data.copy()
+    filter_data = data[
+        data['deal_owner'].isin(['محمد آبساران/روز', 'Han Rez'])
+    ]
+    filter_data['deal_created_date'] = pd.to_datetime(filter_data['deal_created_date'])
     filter_data['deal_value'] = pd.to_numeric(filter_data['deal_value'], errors='coerce') / 10
 
     # Calculate date ranges
     today = datetime.today().date()
     start_date = jdatetime.date(1404, 2, 28).togregorian()
 
-    # ask about this
-    filter_data = filter_data[filter_data['deal_done_date'] >= pd.to_datetime(start_date, )]
+    filter_data = filter_data[filter_data['deal_created_date'] >= pd.to_datetime(start_date, )]
 
     weeks_passed = (today - start_date).days // 7
     current_week_start = start_date + timedelta(weeks=weeks_passed)
@@ -83,8 +96,8 @@ def b2b():
     weekly_counts, weekly_values, weekly_avgs = zip(*weekly_metrics)
     
     # Calculate current week metrics
-    this_week_mask = (filter_data['deal_done_date'].dt.date >= current_week_start) & \
-                    (filter_data['deal_done_date'].dt.date <= today)
+    this_week_mask = (filter_data['deal_created_date'].dt.date >= current_week_start) & \
+                    (filter_data['deal_created_date'].dt.date <= today)
     this_week_count = filter_data[this_week_mask].shape[0]
     this_week_value = filter_data[this_week_mask]['deal_value'].sum()
     this_week_avg = this_week_value / this_week_count if this_week_count > 0 else 0
@@ -99,7 +112,7 @@ def b2b():
 
     with col1:
         display_metrics(col1, [
-            ("تعداد فروش امروز", filter_data[filter_data['deal_done_date'].dt.date == today].shape[0], ""),
+            ("تعداد فروش امروز", filter_data[filter_data['deal_created_date'].dt.date == today].shape[0], ""),
             ("تعداد فروش این هفته", this_week_count, ""),
             ("بیشترین تعداد فروش هفتگی", max(weekly_counts), f" ({4-max_count_week} هفته پیش) "),
         ])
@@ -109,7 +122,7 @@ def b2b():
         
     with col2:
         display_metrics(col2, [
-            ("مقدار فروش امروز", filter_data[filter_data['deal_done_date'].dt.date == today]['deal_value'].sum(), " تومان"),
+            ("مقدار فروش امروز", filter_data[filter_data['deal_created_date'].dt.date == today]['deal_value'].sum(), " تومان"),
             ("مقدار فروش این هفته", this_week_value, " تومان"),
             ("بیشترین مقدار فروش هفتگی", max(weekly_values), f" تومان ({4-max_value_week}هفته پیش) "),
         ])
@@ -143,7 +156,7 @@ def b2b():
     
     with col1:
         display_metrics(col1, [
-            ("میانگین امروز", filter_data[filter_data['deal_done_date'].dt.date == today]['deal_value'].mean(), " تومان"),
+            ("میانگین امروز", filter_data[filter_data['deal_created_date'].dt.date == today]['deal_value'].mean(), " تومان"),
             ("میانگین این هفته", this_week_avg, " تومان"),
               ("بیشترین مقدار فروش هفتگی", max(weekly_values), f" تومان ({4-max_value_week}هفته پیش) "),
         ])
@@ -226,7 +239,7 @@ def b2b():
     # Calculate weekly sales for each of the last 10 weeks
     all_weekly_sales = []
     for start, end in all_week_ranges:
-        mask = (filter_data['deal_done_date'].dt.date >= start) & (filter_data['deal_done_date'].dt.date <= end)
+        mask = (filter_data['deal_created_date'].dt.date >= start) & (filter_data['deal_created_date'].dt.date <= end)
         value = filter_data[mask]['deal_value'].sum()
         all_weekly_sales.append(value)
 
@@ -306,6 +319,7 @@ def b2b():
                 st.warning("No Reward")
 
     st.markdown("---")
+    filter_data['deal_owner'] = filter_data['deal_owner'].apply(normalize_owner)
 
     # Member specific section
     if role in ['member', 'manager']:
@@ -316,48 +330,44 @@ def b2b():
         user_list = [user for user in st.secrets['user_lists']['b2b'] 
                     if user != username and st.secrets['roles'][user] != 'admin']
         if user_list:
-            if 'member_slide_idx' not in st.session_state:
-                st.session_state.member_slide_idx = 0
-
-            col_left, col_center, col_right = st.columns([1, 7, 1])
-            with col_left:
-                if st.button("➡️ نفر قبلی", key="slide_left"):
-                    st.session_state.member_slide_idx = (st.session_state.member_slide_idx - 1) % len(user_list)
-            with col_right:
-                if st.button("نفر بعدی ⬅️", key="slide_right"):
-                    st.session_state.member_slide_idx = (st.session_state.member_slide_idx + 1) % len(user_list)
-            with col_center:
-                member = user_list[st.session_state.member_slide_idx]
-                display_member_metrics(filter_data, member, week_ranges, today, current_week_start)
+            selected_member = st.selectbox(
+                "انتخاب عضو تیم برای مشاهده آمار",
+                user_list,
+                format_func=lambda u: st.secrets['names'][u],
+                key="b2b_member_select"
+            )
+            if selected_member:
+                display_member_metrics(filter_data, selected_member, week_ranges, today, current_week_start)
 
 def display_member_metrics(data, member, week_ranges, today, current_week_start, show_name_as_you=False):
     """Display metrics and charts for a specific team member"""
-    member_data = data[data['deal_owner'].str.contains(member)]
+    member_data = data[data['deal_owner'] == member]
     member = st.secrets['names'][member]
     # Calculate member metrics
     member_metrics = [calculate_weekly_metrics(member_data, start, end) for start, end in week_ranges]
     member_counts, member_values, member_avgs = zip(*member_metrics)
     
     # Calculate current week metrics
-    member_this_week_mask = (member_data['deal_done_date'].dt.date >= current_week_start) & \
-                (member_data['deal_done_date'].dt.date <= today)
+    member_this_week_mask = (member_data['deal_created_date'].dt.date >= current_week_start) & \
+                (member_data['deal_created_date'].dt.date <= today)
     member_this_week_count = member_data[member_this_week_mask].shape[0]
     member_this_week_value = member_data[member_this_week_mask]['deal_value'].sum()
     member_this_week_avg = member_this_week_value / member_this_week_count if member_this_week_count > 0 else 0
-    
+    member_this_week_data = member_data[member_this_week_mask].reset_index(drop=True)
+
     max_count_week = member_counts.index(max(member_counts)) if member_counts else 0
     max_value_week = member_values.index(max(member_values)) if member_values else 0
     max_avg_week = member_avgs.index(max(member_avgs)) if member_avgs else 0
 
     if show_name_as_you:
-        st.subheader(f"👤 آمار شما")
+        st.subheader("👤 آمار شما")
     else:
         st.subheader(f"👤 آمار {member}")
     col1, col2 = st.columns(2)
     
     with col1:
         display_metrics(col1, [
-            ("تعداد فروش امروز", member_data[member_data['deal_done_date'].dt.date == today].shape[0], ""),
+            ("تعداد فروش امروز", member_data[member_data['deal_created_date'].dt.date == today].shape[0], ""),
             ("تعداد فروش این هفته", member_this_week_count, ""),
             ("بیشترین تعداد فروش هفتگی", max(member_counts), f" ({4-max_count_week} هفته پیش)"),
         ])
@@ -368,14 +378,31 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
 
     with col2:
         display_metrics(col2, [
-            ("مقدار فروش امروز", member_data[member_data['deal_done_date'].dt.date == today]['deal_value'].sum(), " تومان"),
+            ("مقدار فروش امروز", member_data[member_data['deal_created_date'].dt.date == today]['deal_value'].sum(), " تومان"),
             ("مقدار فروش این هفته", member_this_week_value, " تومان"),
             ("بیشترین مقدار فروش هفتگی", max(member_values), f" تومان ({4-max_value_week} هفته پیش)"),
         ])
         start = week_ranges[member_values.index(max(member_values))][0]
         end = week_ranges[member_values.index(max(member_values))][1]
         st.write(f'تاریخ: {jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}')
-        
+    
+    with st.expander('📋 لیست معاملات شما' if show_name_as_you else f'📋 لیست معاملات {member}', expanded=False):
+        st.write(member_this_week_data, use_container_width=True, hide_index=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                label="دانلود داده‌ها به صورت CSV",
+                data=convert_df(member_this_week_data),
+                file_name=f'deals{member}.csv',
+                mime='text/csv',
+            )
+        with col2:
+            st.download_button(
+                label="دانلود داده‌ها به صورت اکسل",
+                data=convert_df_to_excel(member_this_week_data),
+                file_name=f'deals{member}.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
 
     # Member charts
     col1, col2 = st.columns(2)
@@ -386,7 +413,7 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
             'تعداد': member_counts,
             'بازه زمانی': [f'{jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}' for start, end in week_ranges]
         })
-        st.plotly_chart(create_weekly_chart(df_member_counts, 'هفته', 'تعداد', f'تعداد فروش هفتگی', max_count_week))
+        st.plotly_chart(create_weekly_chart(df_member_counts, 'هفته', 'تعداد', 'تعداد فروش هفتگی', max_count_week))
 
     with col2:
         df_member_values = pd.DataFrame({
@@ -394,18 +421,18 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
             'مقدار': member_values,
             'بازه زمانی': [f'{jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}' for start, end in week_ranges]
         })
-        st.plotly_chart(create_weekly_chart(df_member_values, 'هفته', 'مقدار', f'مقدار فروش هفتگی', max_value_week))
+        st.plotly_chart(create_weekly_chart(df_member_values, 'هفته', 'مقدار', 'مقدار فروش هفتگی', max_value_week))
 
     # Average deal size
     if show_name_as_you:
-        st.subheader(f"📊 میانگین معاملات شما")
+        st.subheader("📊 میانگین معاملات شما")
     else:
         st.subheader(f"📊 میانگین معاملات {member}")
     col1, col2 = st.columns(2)
     
     with col1:
         display_metrics(col1, [
-            ("میانگین امروز", member_data[member_data['deal_done_date'].dt.date == today]['deal_value'].mean(), " تومان"),
+            ("میانگین امروز", member_data[member_data['deal_created_date'].dt.date == today]['deal_value'].mean(), " تومان"),
             ("میانگین این هفته", member_this_week_avg, " تومان"),
             ("بیشترین میانگین هفتگی", max(member_avgs), f" تومان ({4-max_avg_week} هفته پیش)"),
         ])
@@ -419,4 +446,4 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
             'میانگین': member_avgs,
             'بازه زمانی': [f'{jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}' for start, end in week_ranges]
         })
-        st.plotly_chart(create_weekly_chart(df_avg, 'هفته', 'میانگین', f'میانگین معامله ها', max_avg_week))
+        st.plotly_chart(create_weekly_chart(df_avg, 'هفته', 'میانگین', 'میانگین معامله ها', max_avg_week))
