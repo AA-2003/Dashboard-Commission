@@ -15,19 +15,18 @@ def support():
     st.title("صفحه پشتیبانی")
 
     with st.form(key='support_form'):
-        name = st.text_input('نام خود را وارد کنید:')
-        email = st.text_input('ایمیل خود را وارد کنید:')
-        des = st.text_area('توضیحات:', height=200)  # Use text_area for longer descriptions
-
+        name = st.text_input('نام و نام خانوادگی:')
+        email = st.text_input('ایمیل (اختیاری):')
+        des = st.text_area('شرح مشکل یا درخواست خود را بنویسید:', height=200) 
         submit_button = st.form_submit_button('ارسال')
 
         if submit_button:
             if name  and email and des:
-                row = [datetime.now().strftime('%Y-%m-%d %H:%M:%S'), name, email, des]
-                append_to_sheet(row, 'Requests')
-                st.success("درخواست شما با موفقیت ثبت شد!")  # Show a success message
+                row = [datetime.now().strftime('%Y-%m-%d %H:%M:%S'), name, email, des, 'Commission Dashboard']
+                append_to_sheet(row, 'Dashboard reports')
+                st.success("درخواست شما با موفقیت ثبت شد!") 
             else:
-                st.warning("لطفا همه فیلدها را پر کنید")  # Show a warning if fields are missing
+                st.warning("لطفا همه فیلدها را پر کنید")
 
 
 if __name__ == "__main__":
