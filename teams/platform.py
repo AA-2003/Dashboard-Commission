@@ -54,7 +54,7 @@ def platform():
     # Filter data
     data = st.session_state.data.copy()
     filter_data = data[
-        (data['deal_owner'] == 'محمد مقدسی') |
+        ((data['deal_owner'] == 'محمد مقدسی') & (data['deal_source']=='پلت‌فرم')) |
         ((data['deal_owner'] == 'محمدحسین علیرضایی') & (data['deal_source']=='پلت‌فرم')) |
         ((data['deal_owner'] == 'مبینا جماعتی') & (data['deal_source']=='پلت‌فرم')) 
     ]
