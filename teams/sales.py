@@ -532,9 +532,12 @@ def sales():
         }
         month_name = month_names.get(month, None)
     
-        sheet_name = [sheet for sheet in sheet_names if month_name in sheet and (year in sheet or year[1:] in sheet) ]
-        return sheet_name[0]
-
+        sheet_name = [sheet for sheet in sheet_names if month_name in sheet and (year in sheet or year[1:] in sheet)]
+        if len(sheet_name)>0:
+            return sheet_name[0]
+        else:
+            return None
+        
     # Calculate leaderboards and load parameters
     wolf_board, wolf_first_persons = cal_wolfs(data.copy(), target_month_str)
     sherlock_board = load_sherlock_data(target_month_str)
@@ -542,7 +545,10 @@ def sales():
     eval_sheet_names = get_sheet_names('EVAL')
     eval_sheet = find_eval_sheet(target_month_str, eval_sheet_names)
 
-    eval_parametrs = load_sheet(SHEET_NAME=eval_sheet, spreadsheet='EVAL')
+    if eval_sheet is None:
+        eval_parametrs = None
+    else:
+        eval_parametrs = load_sheet(SHEET_NAME=eval_sheet, spreadsheet='EVAL')
 
     # Ensure parameters are loaded into a dictionary with default values
     default_params = {
@@ -676,54 +682,58 @@ def sales():
                             st.markdown('</div>', unsafe_allow_html=True)
 
                 member_percents = {}
-                with st.expander("👥 درصد عملکرد اعضای تیم", expanded=True):
-                    st.markdown("""درصد عملکرد هر عضو تیم را وارد کنید:""", unsafe_allow_html=True)
+                try: 
+                    with st.expander("👥 درصد عملکرد اعضای تیم", expanded=True):
+                        st.markdown("""درصد عملکرد هر عضو تیم را وارد کنید:""", unsafe_allow_html=True)
 
-                    eval_names_map = {
-                        'پویا  ژیانی':'پویا(شب)',
-                        'محمد آبساران':'محمد آبساران',
-                        'زینب فلاح نژاد':'زینب ',
-                        'پویا وزیری':'پویا وزیری ',
-                        'پوریا کیوانی':'پوریا',
-                        'بابک  مسعودی':'بابک',
-                        'حسین  طاهری':'حسین',
-                        'فرشته فرج نژاد':'فرشته',
-                        'حافظ قاسمی':'حافظ',
-                        'آرمین مربی':'آرمین',
-                    }
-                    def find_percent(eval_parametrs, team_members_names, parametrs):
-                        for member in team_members_names:
-                            percent_key = f'{member}_percent'
-                            col = eval_names_map.get(member, None)
-                            if col:
-                                value = eval_parametrs.loc[
-                                    eval_parametrs['KPI']=='درصد پاداش ناخالص بدون کسر35% ',
-                                    col].astype(str).str.replace('%','').astype(float).values[0]
-                            else:
-                                value = 0
-                            parametrs[percent_key] = value
-                        return parametrs
-                    parametrs = find_percent(eval_parametrs, team_members_names, parametrs)
+                        eval_names_map = {
+                            'پویا  ژیانی':'پویا(شب)',
+                            'محمد آبساران':'محمد آبساران',
+                            'زینب فلاح نژاد':'زینب ',
+                            'پویا وزیری':'پویا وزیری ',
+                            'پوریا کیوانی':'پوریا',
+                            'بابک  مسعودی':'بابک',
+                            'حسین  طاهری':'حسین',
+                            'فرشته فرج نژاد':'فرشته',
+                            'حافظ قاسمی':'حافظ',
+                            'آرمین مربی':'آرمین',
+                        }
+                        def find_percent(eval_parametrs, team_members_names, parametrs):
+                            for member in team_members_names:
+                                percent_key = f'{member}_percent'
+                                col = eval_names_map.get(member, None)
+                                try:
+                                    value = eval_parametrs.loc[
+                                        eval_parametrs['KPI']=='درصد پاداش ناخالص بدون کسر35% ',
+                                        col].astype(str).str.replace('%','').astype(float).values[0]
+                                except Exception as e:
+                                    print(f"Error finding percent for {member}: {e}")
+                                    value = 0
+                                parametrs[percent_key] = value
+                            return parametrs
+                        parametrs = find_percent(eval_parametrs, team_members_names, parametrs)
 
-                    n = len(team_members_names)
-                    n_cols = 4 if n >= 8 else 2  # More columns for larger teams
-                    rows = [team_members_names[i:i+n_cols] for i in range(0, n, n_cols)]
-                    for row in rows:
-                        cols = st.columns(len(row))
-                        for idx, member in enumerate(row):
-                            with cols[idx]:
-                                member_percent = st.number_input(
-                                    label=f"{member}",
-                                    key=f'{member}_percent',
-                                    format="%f",
-                                    step=1.0,
-                                    min_value=0.0,
-                                    max_value=100.0,
-                                    value=float(parametrs.get(f'{member}_percent', 0))
-                                )
-                                member_percents[member] = member_percent
-                    st.caption("🔢 جمع درصد عملکرد اعضا باید دقیقا 100 باشد.")
-
+                        n = len(team_members_names)
+                        n_cols = 4 if n >= 8 else 2  # More columns for larger teams
+                        rows = [team_members_names[i:i+n_cols] for i in range(0, n, n_cols)]
+                        for row in rows:
+                            cols = st.columns(len(row))
+                            for idx, member in enumerate(row):
+                                with cols[idx]:
+                                    member_percent = st.number_input(
+                                        label=f"{member}",
+                                        key=f'{member}_percent',
+                                        format="%f",
+                                        step=1.0,
+                                        min_value=0.0,
+                                        max_value=100.0,
+                                        value=float(parametrs.get(f'{member}_percent', 0))
+                                    )
+                                    member_percents[member] = member_percent
+                        st.caption("🔢 جمع درصد عملکرد اعضا باید دقیقا 100 باشد.")
+                except Exception as e:
+                    st.error("خطا در بارگذاری درصد اعضا")
+                    
                 submitted = st.form_submit_button('تنظیم مجدد')
                 if submitted:
                     # Validate that main percents sum to 100

@@ -156,12 +156,12 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
     
     # --- Reward Logic ---
     # The reward percentage changes based on whether the team's sales (current_value)
-    # have reached the target.
+    # have reached the target * 0.95.
     # The progress bar is capped at 100%.
     if target > 0:
-        percent_of_target = min((current_value / target) * 100, 100)
+        display_percentage = min((current_value / target) * 100, 100.0)
     else:
-        percent_of_target = 0
+        display_percentage = 0
     
     # Determine which reward percentage to use (normal vs. growth)
     reward_percent = parameters.get('grow_percent', 0) if target > 0 and current_value >= target * 0.95 else parameters.get('normal_percent', 0)
@@ -177,7 +177,6 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
 
     # --- Progress Pie Visualization ---
     st.subheader("میزان پیشرفت ")
-    display_percentage = min(percent_of_target, 100.0)
     fig = go.Figure()
     fig.add_trace(go.Pie(
         values=[display_percentage, 100 - display_percentage],
@@ -264,6 +263,7 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                     file_name='deals-for-reward.xlsx',
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 )
+                
     # --- Individual Reward Display ---
     if user_filter:
         selected_member = user_filter
@@ -314,8 +314,6 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                     file_name=f'{selected_member}-deals.xlsx',
                     mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 )
-
-
 
 
 # ----------- Main App Function -----------
