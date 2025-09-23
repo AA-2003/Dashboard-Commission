@@ -150,7 +150,7 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
         st.warning('هیچ معامله‌ای با تاریخ خروج در این ماه برای محاسبه پاداش ثبت نشده است.')
         return
 
-    target = parameters.get('target', 0)
+    target = parameters.get('record', 0)
     # The deal value is divided by 10, likely to convert from Rials to Tomans.
     current_value = deals_for_reward['deal_value'].sum() / 10
     
@@ -164,11 +164,11 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
         percent_of_target = 0
     
     # Determine which reward percentage to use (normal vs. growth)
-    reward_percent = parameters.get('grow_percent', 0) if target > 0 and current_value >= target else parameters.get('normal_percent', 0)
+    reward_percent = parameters.get('grow_percent', 0) if target > 0 and current_value >= target * 0.95 else parameters.get('normal_percent', 0)
     deals_count = deals_for_reward.shape[0]
     col1, col2, col3, col4 = st.columns(4)
     
-    col1.metric('🎯 تارگت فروش ماه', value=f'{target:,.0f} تومان')
+    col1.metric('🎯 تارگت فروش', value=f'{target:,.0f} تومان')
     col2.metric('تعداد فروش', value=deals_count)
     col3.metric('میزان فروش', value=f"{current_value:,.0f} تومان")
     col4.metric('میانگین مبلغ معامله', value=f"{current_value/deals_count:,.2f} تومان")
@@ -211,7 +211,8 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
             .reset_index()
         )
         member_stats['پاداش'] = member_stats['میزان_فروش'] * reward_percent / 100
-        member_stats = member_stats.rename(columns={'deal_owner': 'کارشناس'})
+        member_stats = member_stats.rename(columns={'deal_owner': 'کارشناس'}
+                        ).sort_values(by='تعداد_معامله', ascending=False)
         st.markdown("#### جدول پاداش اعضای تیم")
         st.dataframe(member_stats.style.format({'میزان_فروش': '{:,.0f}', 'پاداش': '{:,.0f}'}), use_container_width=True)
         
@@ -296,7 +297,7 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                 'Customer_id': 'شناسه مشتری',
                 'checkout_date': 'تاریخ خروج',
                 'checkout_jalali_str': 'تاریخ خروج (شمسی)'
-            })
+            }).reset_index(drop=True)
             st.write(data_to_write)
             col1, col2 = st.columns(2)
             with col1:
