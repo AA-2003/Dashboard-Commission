@@ -11,7 +11,7 @@ from teams.b2b import b2b
 
 # Constants
 DEFAULT_DAYS = 80
-COMMISSION_DASHBOARD = "داشبورد کمیسیون"
+COMMISSION_DASHBOARD = "داشبورد عملکرد تیم ها"
 SELECT_YOUR_TEAM = "🎯 تیم خود را انتخاب کنید:"
 GO_BACK_TO_MAIN_PAGE = "بازگشت"
 LOGOUT = "خروج"
@@ -43,8 +43,6 @@ def main():
 
     # logo
     st.image("static/logo.svg", width=300)
-    with st.sidebar:
-        st.title(COMMISSION_DASHBOARD)
 
     # Load initial data from sheet
     if 'data' not in st.session_state:

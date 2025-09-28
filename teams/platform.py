@@ -168,8 +168,8 @@ def platform():
     # Platform - Split by Day, Week, Month - Drill Down
     st.subheader("📊 فروش به تفکیک پلتفرم")
 
-    def get_platform_sales_df(mask, label):
-        df = filter_data[mask & (filter_data['platform'] != '')].groupby('platform')['deal_value'].sum().sort_values(ascending=False).reset_index()
+    def get_platform_sales_df(filter_data, mask, label):
+        df = filter_data[mask & (filter_data['platform'] != '')].groupby('platform')['deal_value'].sum().sort_values(ascending=False).reset_index().copy()
         df.columns = ['پلتفرم', 'مقدار فروش']
         df['بازه'] = label
         return df
@@ -180,9 +180,9 @@ def platform():
     last_month_start = today - pd.Timedelta(days=29)
     month_mask = (filter_data['deal_created_date'].dt.date >= last_month_start) & (filter_data['deal_created_date'].dt.date <= today)
 
-    df_day = get_platform_sales_df(today_mask, 'امروز')
-    df_week = get_platform_sales_df(week_mask, 'این هفته')
-    df_month = get_platform_sales_df(month_mask, 'این ماه')
+    df_day = get_platform_sales_df(filter_data, today_mask, 'امروز')
+    df_week = get_platform_sales_df(filter_data, week_mask, 'این هفته')
+    df_month = get_platform_sales_df(filter_data, month_mask, 'این ماه')
 
     df_all = pd.concat([df_day, df_week, df_month], ignore_index=True)
 

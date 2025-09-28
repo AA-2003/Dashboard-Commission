@@ -64,7 +64,8 @@ def b2b():
     # filter data
     data = st.session_state.data.copy()
     filter_data = data[
-        data['deal_owner'].isin(['محمد آبساران/روز', 'Han Rez'])
+        # data['deal_owner'].isin(['محمد آبساران/روز', 'Han Rez'])
+        data['deal_owner'].isin(['محمد آبساران/روز'])
     ]
     filter_data['deal_created_date'] = pd.to_datetime(filter_data['deal_created_date'])
     filter_data['deal_value'] = pd.to_numeric(filter_data['deal_value'], errors='coerce') / 10

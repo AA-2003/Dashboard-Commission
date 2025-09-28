@@ -366,12 +366,13 @@ def display_daily_deals_chart(df: pd.DataFrame, member: str):
                     value_per_day, x='deal_created_date', y='deal_value',
                     labels={'deal_created_date': 'تاریخ', 'deal_value': 'مجموع ارزش معاملات'},
                     hover_data=['تاریخ شمسی'],
+                    markers =True,
                     # text_auto=True
                 )
                 fig2.update_layout(
                     template='plotly_white',
                     yaxis_title='مجموع ارزش معاملات',
-                    xaxis_title='تاریخ'
+                    xaxis_title='تاریخ',
                 )
                 st.plotly_chart(fig2, use_container_width=True)
             else:
@@ -392,10 +393,12 @@ def display_daily_deals_chart(df: pd.DataFrame, member: str):
             fig = px.line(
                 deals_per_day, x='deal_created_date', y='deals_count',
                 markers=True, labels={'deal_created_date': 'تاریخ', 'deals_count': 'تعداد معاملات'},
-                hover_data=['تاریخ شمسی']
+                hover_data=['تاریخ شمسی'],
+
             )
             fig.update_layout(
-                template='plotly_white', yaxis=dict(range=[0, y_max_limit])
+                template='plotly_white',
+                  yaxis=dict(range=[0, y_max_limit])
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -630,7 +633,7 @@ def sales():
                 st.info("هنوز کسی در این ماه اول نشده است.")
 
         with tabs[2]: # Sherlock Tab
-            st.markdown("### 🕵️ جدول امتیاز شرلوک (ماه جاری)")
+            st.markdown("### 🕵️ جدول امتیاز شرلوک")
             if sherlock_board is not None and not sherlock_board.empty:
                 st.dataframe(sherlock_board.rename(columns={"deal_owner": "شخص", "score": "امتیاز"}), use_container_width=True, hide_index=True)
             else:
