@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import streamlit as st
+
 from utils.custom_css import apply_custom_css
 from utils.data_loader import load_data
 from utils.load_data import load_sheet
@@ -8,6 +9,9 @@ from teams.platform import platform
 from teams.social import social
 from teams.sales import sales
 from teams.b2b import b2b
+
+from utils.logger import logger
+
 
 # Constants
 DEFAULT_DAYS = 80
@@ -25,12 +29,19 @@ to_date = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
 def load_data_cached(sheet, from_date, to_date, won=False):
     """Load data with caching."""
     if sheet:
-        return load_sheet()
+        try:
+            return load_sheet()
+        except Exception as e:
+            logger.error(f"Error in load_sheet(): {e!r}")
+            return None
     else:
-        return load_data(from_date, to_date, WON=won)
+        try:
+            return load_data(from_date, to_date, WON=won)
+        except Exception as e:
+            logger.error(f"Error in load_data(): {e!r}")
+            return None
 
-
-user_lists = st.secrets["user_lists"]
+user_lists = st.secrets.get("user_lists", {})
 
 def main():
     """Main function to run the Streamlit app."""
@@ -47,12 +58,33 @@ def main():
     # Load initial data from sheet
     if 'data' not in st.session_state:
         data = load_data_cached(True, from_date, to_date, won=True)
-        data = data[
-                (data['deal_status']=='Won')&
-                (data['deal_value'] != 0)
-                ].reset_index(drop=True)        
-        st.session_state.data = data
-
+        if data is None:
+            logger.error("Loaded data is None. Cannot continue.")
+            st.error("داده‌ها با خطا دریافت شد. لطفاً بعدا مجدد تلاش کنید.")
+            st.stop()
+        else:
+            # Defensive check for columns
+            if not hasattr(data, "__getitem__"):
+                logger.error("Loaded data is not subscriptable.")
+                st.error("فرمت داده‌ها صحیح نیست.")
+                st.stop()
+            elif not all(col in data for col in ['deal_status', 'deal_value']):
+                logger.error("Loaded data missing required columns: 'deal_status', 'deal_value'.")
+                st.error("ستون‌های مورد نیاز یافت نشدند.")
+                st.stop()
+            else:
+                try:
+                    filtered = data[
+                        (data['deal_status'] == 'Won') &
+                        (data['deal_value'] != 0)
+                    ].reset_index(drop=True)
+                    logger.info(f"Loaded {len(filtered)} deals after filtering.")
+                except Exception as e:
+                    logger.error(f"Error filtering data: {e!r}")
+                    st.error("خطا در فیلتر کردن داده‌ها.")
+                    st.stop()
+                st.session_state.data = filtered
+    # st.dataframe(st.session_state.data)
     if 'auth' in st.session_state and st.session_state.auth:
         with st.sidebar:
             if st.button(LOGOUT, use_container_width=True):
@@ -65,7 +97,7 @@ def main():
         team_selection()
 
     else:
-        col1, col2, col3 = st.columns([1,3,1])
+        col1, col2, col3 = st.columns([1, 3, 1])
         with st.sidebar:
             if st.button(GO_BACK_TO_MAIN_PAGE, use_container_width=True):
                 st.session_state.team = None
@@ -103,12 +135,16 @@ def auth_check():
         selected_team = st.session_state.team
         if selected_team in team_page_mapping:
             page, team_key = team_page_mapping[selected_team]
-            if st.session_state.username in user_lists[team_key]:
+            username = st.session_state.get("username")
+            user_list_for_team = user_lists.get(team_key, [])
+            if username in user_list_for_team:
                 page()
             else:
+                logger.warning(f"Unauthorized access attempt by {username} to team {team_key}.")
                 st.error(ACCESS_DENIED)
                 st.stop()
         else:
+            logger.warning(f"Unknown team selected: {selected_team}")
             st.error(ACCESS_DENIED)
             st.stop()
 

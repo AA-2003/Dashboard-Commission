@@ -281,6 +281,7 @@ def load_data(start_date: str = None, end_date: str = None, WON: bool = False) -
             row[header] = value
         rows.append(row)
     df = pd.DataFrame(rows)
+    df['product_discount'] = pd.to_numeric(df['product_discount'], errors='coerce').fillna(0).astype(int)
     print(f"Data loaded successfully with {len(df)} records.")
     try:
         preprocess(df)
