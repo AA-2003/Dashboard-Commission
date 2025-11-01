@@ -1,15 +1,16 @@
 from datetime import datetime, timedelta
 import streamlit as st
+import pandas as pd
+
 
 from utils.custom_css import apply_custom_css
 from utils.data_loader import load_data
-from utils.load_data import load_sheet
+from utils.load_data import load_sheet, load_sheet_uncache
 from utils.auth import login
 from teams.platform import platform
 from teams.social import social
 from teams.sales import sales
 from teams.b2b import b2b
-
 from utils.logger import logger
 
 
@@ -26,7 +27,7 @@ from_date = (datetime.today() - timedelta(days=DEFAULT_DAYS)).strftime('%Y-%m-%d
 to_date = (datetime.today() + timedelta(days=1)).strftime('%Y-%m-%d')
 
 @st.cache_data(ttl=600, show_spinner=False)
-def load_data_cached(sheet, from_date, to_date, won=False):
+def load_data_cached(sheet, from_date, to_date, won=False) -> pd.DataFrame:
     """Load data with caching."""
     if sheet:
         try:
@@ -41,7 +42,18 @@ def load_data_cached(sheet, from_date, to_date, won=False):
             logger.error(f"Error in load_data(): {e!r}")
             return None
 
+
+def load_team_members() -> pd.DataFrame:
+    try:
+        return load_sheet("Users")
+
+    except Exception as e:
+        logger.error(f"Error loading 'Users' sheet: {e!r}")
+        return None  # Return None in case of error
+
+
 user_lists = st.secrets.get("user_lists", {})
+
 
 def main():
     """Main function to run the Streamlit app."""
@@ -58,7 +70,9 @@ def main():
     # Load initial data from sheet
     if 'data' not in st.session_state:
         data = load_data_cached(True, from_date, to_date, won=True)
-        if data is None:
+        team_members = load_team_members()
+
+        if data is None or team_members is None:
             logger.error("Loaded data is None. Cannot continue.")
             st.error("داده‌ها با خطا دریافت شد. لطفاً بعدا مجدد تلاش کنید.")
             st.stop()
@@ -84,6 +98,8 @@ def main():
                     st.error("خطا در فیلتر کردن داده‌ها.")
                     st.stop()
                 st.session_state.data = filtered
+                st.session_state.team_members = team_members
+
     # st.dataframe(st.session_state.data)
     if 'auth' in st.session_state and st.session_state.auth:
         with st.sidebar:

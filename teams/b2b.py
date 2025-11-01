@@ -91,7 +91,11 @@ def b2b():
         # filter data
         data = st.session_state.data.copy()
         filter_data = data[
-            data['deal_owner'].isin(['محمد آبساران/روز'])
+            (data['deal_owner'].isin(['محمد مقدسی',
+                                     'مائده صادقی',
+                                     'مبینا جماعتی'])&
+            (data['deal_source'].isin(['مهمان واسطه', 'فرودگاه']))
+        )
         ].copy()
         filter_data['deal_created_date'] = ensure_datetime_col(filter_data, 'deal_created_date')
         try:
@@ -446,16 +450,26 @@ def b2b():
             except Exception as e:
                 logger.error(f"Error displaying member metrics for {username}: {e}")
 
+    
         # Manager view of team members with slide navigation
         if role in ['manager', 'admin']:
-            try:
-                user_list = [user for user in st.secrets['user_lists']['b2b'] 
-                            if user != username and st.secrets['roles'][user] != 'admin']
-                if user_list:
+            try:                    
+                user_list = st.session_state.team_members
+
+                user_list = user_list[
+                    (user_list['team'].str.contains('b2b', na=False))
+                ]
+
+                user_list = user_list[
+                    (user_list['username'] != username) & 
+                    (user_list['role'] != 'admin') & 
+                    (user_list['username'].isin(filter_data['deal_owner'].unique()))
+                ]
+
+                if not user_list.empty:
                     selected_member = st.selectbox(
                         "انتخاب عضو تیم برای مشاهده آمار",
                         user_list,
-                        format_func=lambda u: st.secrets['names'][u],
                         key="b2b_member_select"
                     )
                     if selected_member:
@@ -472,7 +486,6 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
         member_data = data[data['deal_owner'] == member].copy()
         member_data['deal_created_date'] = ensure_datetime_col(member_data, 'deal_created_date')
         date_series = member_data['deal_created_date'].dt.date
-        member_name = st.secrets['names'].get(member, member)
 
         # Calculate member metrics
         try:
@@ -501,7 +514,7 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
         if show_name_as_you:
             st.subheader("👤 آمار شما")
         else:
-            st.subheader(f"👤 آمار {member_name}")
+            st.subheader(f"👤 آمار {member}")
         col1, col2 = st.columns(2)
 
         with col1:
@@ -533,7 +546,7 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
                 logger.error(f"Error in member right stats column: {e}")
 
         try:
-            with st.expander('📋 لیست معاملات شما' if show_name_as_you else f'📋 لیست معاملات {member_name}', expanded=False):
+            with st.expander('📋 لیست معاملات شما' if show_name_as_you else f'📋 لیست معاملات {member}', expanded=False):
                 st.dataframe(member_this_week_data, width=True, hide_index=True)
                 col1, col2 = st.columns(2)
                 with col1:
@@ -588,7 +601,7 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
         if show_name_as_you:
             st.subheader("📊 میانگین معاملات شما")
         else:
-            st.subheader(f"📊 میانگین معاملات {member_name}")
+            st.subheader(f"📊 میانگین معاملات {member}")
         col1, col2 = st.columns(2)
 
         with col1:
