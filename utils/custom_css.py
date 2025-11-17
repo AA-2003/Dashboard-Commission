@@ -15,7 +15,7 @@ def apply_custom_css():
         h4, h5, h6 { font-size: 1em !important; }
 
         /* تنظیم جهت راست‌به‌چپ برای فارسی */
-        .main, .block-container {
+        .main, .block-container, [data-testid="stSidebar"] {
             direction: rtl !important;
             text-align: right !important;
         }
