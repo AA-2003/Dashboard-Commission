@@ -1,36 +1,30 @@
 # utils/logger.py
-import logging
+# simple logger setup for adding logs to logs sheet
 
-class NoWatchdogFilter(logging.Filter):
-    def filter(self, record):
-        # Suppress specific noisy logs from watchdog's inotify_buffer
-        if record.name.startswith('watchdog.observers.inotify_buffer'):
-            return False
-        return True
+import streamlit as st
+from .sheetConnect import append_to_sheet, authenticate_google_sheets
 
-# Configure base logger (root) so all loggers inherit handlers.
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+PRODUCTION = st.secrets.get("PRODUCTION", False)
+def log_event(user: str, event_type: str, message: str):
+    """
+    Log an event to the logs sheet.
+    
+    Args:
+        user: Username associated with the event
+        event_type: Type of event (e.g., 'login', 'error')
+        message: Detailed message about the event
+    """
+    from datetime import datetime
 
-file_handler = logging.FileHandler("app.log")
-file_handler.setFormatter(formatter)
-file_handler.addFilter(NoWatchdogFilter())
+    log_data = {
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'user': user,
+        'event_type': event_type,
+        'message': message
+    }
+    spreadsheet_id = st.secrets.get("SPREADSHEET_IDS").get("MAIN_SPREADSHEET_ID")
 
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-stream_handler.addFilter(NoWatchdogFilter())
-
-if not root_logger.hasHandlers():
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(stream_handler)
-else:
-    # Avoid duplicate handlers during reloads.
-    found_file = any(isinstance(h, logging.FileHandler) for h in root_logger.handlers)
-    found_stream = any(isinstance(h, logging.StreamHandler) for h in root_logger.handlers)
-    if not found_file:
-        root_logger.addHandler(file_handler)
-    if not found_stream:
-        root_logger.addHandler(stream_handler)
-
-logger = logging.getLogger(__name__)
+    if PRODUCTION:
+        append_to_sheet(client=authenticate_google_sheets(), spreadsheet_id=spreadsheet_id, sheet_name='Logs', row_data=[log_data])
+    else:
+        print(f"LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")

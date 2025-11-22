@@ -48,7 +48,7 @@ def authenticate_google_sheets():
         print(f"Google Sheets Authentication Error: {e}")
         st.stop()
     
-def write_df_to_sheet(df, sheet_name='test', clear_sheet=True):
+def write_df_to_sheet(df, spreadsheet_key, sheet_name='test', clear_sheet=True):
     """
     Write a pandas DataFrame to a Google Sheet.
     Args:
@@ -62,7 +62,7 @@ def write_df_to_sheet(df, sheet_name='test', clear_sheet=True):
     if not gs_client:
         return False
 
-    spreadsheet_id = st.secrets.get("SPREADSHEET_ID")['MAIN_SPREADSHEET_ID']
+    spreadsheet_id = st.secrets.get("SPREADSHEET_IDS")[spreadsheet_key]
     if not spreadsheet_id:
         print("SPREADSHEET_ID is missing in Streamlit secrets.")
         return False
@@ -105,7 +105,7 @@ def append_to_sheet(row, sheet_name):
     if not gs_client:
         return False
 
-    spreadsheet_id = st.secrets.get("SPREADSHEET_ID")['REQ_SPREADSHEET_ID']
+    spreadsheet_id = st.secrets.get("SPREADSHEET_IDS")['REQ_SPREADSHEET_ID']
     if not spreadsheet_id:
         print("SPREADSHEET_ID is missing in Streamlit secrets.")
         return False
