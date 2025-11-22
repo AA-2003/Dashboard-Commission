@@ -5,23 +5,20 @@ import plotly.express as px
 import plotly.graph_objects as go
 import jdatetime
 import numpy as np
-from utils.func import convert_df, convert_df_to_excel
-from utils.logger import log_event
+from utils.funcs import download_buttons, handel_errors
 from utils.custom_css import apply_custom_css
 from utils.sidebar import render_sidebar
 
-def _get_username():
-    """Helper to get current user for logging."""
-    try:
-        return st.session_state.get('userdata', {}).get('name', 'unknown')
-    except Exception:
-        return 'unknown'
-
+# Prepare X axis labels: day/month for start and end of week in Jalali (e.g., 01/03 - 07/03)
+def to_jalali_label(start, end):
+    start_j = jdatetime.date.fromgregorian(date=start)
+    end_j = jdatetime.date.fromgregorian(date=end)
+    return f"{start_j.day:02d}/{start_j.month:02d} - {end_j.day:02d}/{end_j.month:02d}"
+    
 @st.cache_data(ttl=300, show_spinner=False)
-def get_platform_sales_df(filter_data, mask, label):
+def get_platform_sales_df(filtered_data, mask, label):
     """Helper for aggregating sales by platform filtered by mask and period label."""
-    log_event(_get_username(), 'debug', f"Aggregating sales by platform for {label}")
-    df = filter_data[mask & (filter_data['platform'] != '')].groupby('platform')['deal_value'].sum().sort_values(ascending=False).reset_index().copy()
+    df = filtered_data[mask & (filtered_data['platform'] != '')].groupby('platform')['deal_value'].sum().sort_values(ascending=False).reset_index().copy()
     df.columns = ['پلتفرم', 'مقدار فروش']
     df['بازه'] = label
     return df
@@ -31,12 +28,11 @@ def ensure_datetime_col(df, col):
     Ensure a pandas Series is in datetime64 format. 
     Returns the converted column or original if already correct.
     """
-    log_event(_get_username(), 'debug', f"Ensuring {col} column is datetime in dataframe of shape {df.shape}")
     if not pd.api.types.is_datetime64_any_dtype(df[col]):
         try:
             return pd.to_datetime(df[col], errors='coerce')
         except Exception as e:
-            log_event(_get_username(), 'error', f"Error converting {col} to datetime: {e}")
+            handel_errors(e, f"Error converting {col} to datetime", show_error=False)
             return df[col]
     return df[col]
 
@@ -45,7 +41,6 @@ def calculate_weekly_metrics(data, start_date, end_date):
     Calculate weekly metrics for given data and date range.
     Ensures .dt accessor is used only on datetimelike columns.
     """
-    log_event(_get_username(), 'debug', f"Calculating weekly metrics from {start_date} to {end_date} for data shape {data.shape}")
     deal_created_col = ensure_datetime_col(data, 'deal_created_time')
     # Defensive: Get date values safely
     deal_date_values = deal_created_col.dt.date if pd.api.types.is_datetime64_any_dtype(deal_created_col) else deal_created_col
@@ -53,12 +48,10 @@ def calculate_weekly_metrics(data, start_date, end_date):
     count = data[mask].shape[0]
     value = data[mask]['deal_value'].sum()
     avg = value / count if count > 0 else 0
-    log_event(_get_username(), 'debug', f"Weekly count: {count}, value: {value}, avg: {avg}")
     return count, value, avg
 
 def create_weekly_chart(df, x_col, y_col, title, color_col=None):
     """Create a standardized weekly chart."""
-    log_event(_get_username(), 'debug', f"Creating weekly chart for {title}, dataframe shape: {df.shape}")
     fig = px.bar(df, x=x_col, y=y_col, hover_data=['بازه زمانی'], title=title)
     fig.update_layout(
         title_x=0.5,  
@@ -77,7 +70,6 @@ def display_metrics(col, metrics):
     for label, value, suffix in metrics:
         if value is np.nan:
             value = 0
-        log_event(_get_username(), 'debug', f"Displaying metric: {label}: {value}{suffix}")
         st.metric(label, f"{value:,.0f}{suffix}")
 
 def main():
@@ -88,7 +80,6 @@ def main():
     apply_custom_css()
     render_sidebar()
 
-    log_event(_get_username(), 'info', "Rendering Platform dashboard")
     st.title("📊 داشبورد تیم Platform")
     
     if 'logged_in' not in st.session_state or not st.session_state.logged_in:
@@ -104,30 +95,32 @@ def main():
         st.error("شما به این بخش دسترسی ندارید")
         return
 
-    team_users = st.session_state.users[
-        (st.session_state.users['team'].apply(lambda x: 'platform' in [team.strip() for team in x.split('|')]))&
-        (st.session_state.users['role'] != 'admin')
-    ]
+    # team_users = st.session_state.users[
+    #     (st.session_state.users['team'].apply(lambda x: 'platform' in [team.strip() for team in x.split('|')]))&
+    #     (st.session_state.users['role'] != 'admin')
+    # ]
 
     data = st.session_state.deals_data.copy()
     
     # Filter data for Platform team
-    filter_data = data[
-        (data['deal_source']=='پلت‌فرم') &
-        (data['deal_owner'].isin(team_users['username_in_didar'].values))
+    filtered_data = data[
+        # (data['deal_owner'].isin(team_users['username_in_didar'].values)) &
+        (data['deal_source']=='پلت‌فرم')&
+        (data['deal_type'].isin(['تمدید', 'فروش جدید'])) &
+        (data['deal_status'] == 'Won')
     ].copy()
     
-    filter_data = filter_data.copy()
+    filtered_data = filtered_data.copy()
 
     # Always ensure types safely before .dt
-    filter_data.loc[:, 'deal_created_time'] = pd.to_datetime(filter_data['deal_created_time'], errors='coerce')
-    filter_data.loc[:, 'deal_value'] = pd.to_numeric(filter_data['deal_value'], errors='coerce') / 10
+    filtered_data.loc[:, 'deal_created_time'] = pd.to_datetime(filtered_data['deal_created_time'], errors='coerce')
+    filtered_data.loc[:, 'deal_value'] = pd.to_numeric(filtered_data['deal_value'], errors='coerce') / 10
 
     # Calculate date ranges
     today = datetime.today().date()
     start_date = jdatetime.date(1404, 2, 31).togregorian()
 
-    filter_data = filter_data[filter_data['deal_created_time'] >= pd.to_datetime(start_date, )]
+    filtered_data = filtered_data[filtered_data['deal_created_time'] >= pd.to_datetime(start_date, )]
 
     weeks_passed = (today - start_date).days // 7
     current_week_start = start_date + timedelta(weeks=weeks_passed)
@@ -146,17 +139,17 @@ def main():
         st.info(f"امروز: {jalali_end.strftime('%Y/%m/%d')}")
 
     # Calculate team metrics
-    weekly_metrics = [calculate_weekly_metrics(filter_data, start, end) for start, end in week_ranges]
+    weekly_metrics = [calculate_weekly_metrics(filtered_data, start, end) for start, end in week_ranges]
     weekly_counts, weekly_values, weekly_avgs = zip(*weekly_metrics)
     
     # Defensive extraction of .dt.date
-    deal_created_col = ensure_datetime_col(filter_data, 'deal_created_time')
+    deal_created_col = ensure_datetime_col(filtered_data, 'deal_created_time')
     deal_date_values = deal_created_col.dt.date if pd.api.types.is_datetime64_any_dtype(deal_created_col) else deal_created_col
 
     # Calculate current week metrics safely
     this_week_mask = (deal_date_values >= current_week_start) & (deal_date_values <= today)
-    this_week_count = filter_data[this_week_mask].shape[0]
-    this_week_value = filter_data[this_week_mask]['deal_value'].sum()
+    this_week_count = filtered_data[this_week_mask].shape[0]
+    this_week_value = filtered_data[this_week_mask]['deal_value'].sum()
     this_week_avg = this_week_value / this_week_count if this_week_count > 0 else 0
 
     max_count_week = weekly_counts.index(max(weekly_counts))
@@ -170,7 +163,7 @@ def main():
     with col1:
         today_mask = (deal_date_values == today)
         display_metrics(col1, [
-            ("تعداد فروش امروز", filter_data[today_mask].shape[0], ""),
+            ("تعداد فروش امروز", filtered_data[today_mask].shape[0], ""),
             ("تعداد فروش این هفته", this_week_count, ""),
             ("بیشترین تعداد فروش هفتگی", max(weekly_counts), f" ({4-max_count_week} هفته پیش) "),
         ])
@@ -180,7 +173,7 @@ def main():
         
     with col2:
         display_metrics(col2, [
-            ("مقدار فروش امروز", filter_data[today_mask]['deal_value'].sum(), " تومان"),
+            ("مقدار فروش امروز", filtered_data[today_mask]['deal_value'].sum(), " تومان"),
             ("مقدار فروش این هفته", this_week_value, " تومان"),
             ("بیشترین مقدار فروش هفتگی", max(weekly_values), f" تومان ({4-max_value_week}هفته پیش) "),
         ])
@@ -213,7 +206,7 @@ def main():
     
     with col1:
         display_metrics(col1, [
-            ("میانگین امروز", filter_data[today_mask]['deal_value'].mean(), " تومان"),
+            ("میانگین امروز", filtered_data[today_mask]['deal_value'].mean(), " تومان"),
             ("میانگین این هفته", this_week_avg, " تومان"),
             ("بیشترین میانگین هفتگی", max(weekly_avgs), f" تومان ({4-max_avg_week} هفته پیش)"),
         ])
@@ -240,9 +233,9 @@ def main():
     week_mask = (deal_date_values >= current_week_start) & (deal_date_values <= week_end)
     month_mask = (deal_date_values >= last_month_start) & (deal_date_values <= today)
 
-    df_day = get_platform_sales_df(filter_data, today_mask, 'امروز')
-    df_week = get_platform_sales_df(filter_data, week_mask, 'این هفته')
-    df_month = get_platform_sales_df(filter_data, month_mask, 'این ماه')
+    df_day = get_platform_sales_df(filtered_data, today_mask, 'امروز')
+    df_week = get_platform_sales_df(filtered_data, week_mask, 'این هفته')
+    df_month = get_platform_sales_df(filtered_data, month_mask, 'این ماه')
 
     df_all = pd.concat([df_day, df_week, df_month], ignore_index=True)
 
@@ -273,7 +266,6 @@ def main():
         )
         st.plotly_chart(fig, config={'responsive': True})
     else:
-        log_event(_get_username(), 'info', f"No data for platform sales in period: {selected_period}")
         st.info(f"داده‌ای برای نمایش در بازه «{selected_period}» وجود ندارد.")
         
     st.markdown("---")
@@ -284,7 +276,6 @@ def main():
     # reward
     target = max(weekly_values) * 0.9
     progress_percentage = (this_week_value / target) * 100
-    log_event(_get_username(), 'info', f"Reward Target: {target}, Progress %: {progress_percentage}")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -292,12 +283,9 @@ def main():
         if this_week_value > target:
             reward = reward_percentage * (this_week_value - target)
             st.success(f"🎉 پاداش: {reward:,.0f} تومان")
-            log_event(_get_username(), 'info', f"Reward given: {reward}")
         else:
             remaining = target - this_week_value
             st.warning(f"⏳ باقیمانده: {remaining:,.0f} تومان")
-            log_event(_get_username(), 'info', f"Remaining to target: {remaining}")
-
         if progress_percentage < 100:
             st.info(f"🎯 {100 - progress_percentage:.1f}% تا رسیدن به تارگت ")
 
@@ -339,21 +327,13 @@ def main():
         week_start = current_week_start - timedelta(weeks=i)
         week_end = week_start + timedelta(days=6)
         all_week_ranges.append((week_start, week_end))
-    log_event(_get_username(), 'debug', f"Last 10 week ranges for charting: {all_week_ranges}")
 
     # Calculate weekly sales for each of the last 10 weeks
     all_weekly_sales = []
     for start, end in all_week_ranges:
         mask = (deal_date_values >= start) & (deal_date_values <= end)
-        value = filter_data[mask]['deal_value'].sum()
+        value = filtered_data[mask]['deal_value'].sum()
         all_weekly_sales.append(value)
-    log_event(_get_username(), 'debug', f"Weekly sales values for 10 weeks: {all_weekly_sales}")
-
-    # Prepare X axis labels: day/month for start and end of week in Jalali (e.g., 01/03 - 07/03)
-    def to_jalali_label(start, end):
-        start_j = jdatetime.date.fromgregorian(date=start)
-        end_j = jdatetime.date.fromgregorian(date=end)
-        return f"{start_j.day:02d}/{start_j.month:02d} - {end_j.day:02d}/{end_j.month:02d}"
 
     weeks_labels = [
         to_jalali_label(start, end)
@@ -370,8 +350,11 @@ def main():
         text=[f"{v:,.0f}" for v in all_weekly_sales],
         textposition='outside'
     ))
+    # set max y 1.1 times the max sales for better visibility
+    max_sales = max(all_weekly_sales) if all_weekly_sales else 0
     fig_sales.update_layout(
         title="",
+        yaxis_range=[0, max_sales * 1.1],
         xaxis_title="هفته (شروع - پایان)",
         yaxis_title="فروش (تومان)",
         font=dict(family="Tahoma", size=16),
@@ -403,7 +386,6 @@ def main():
             reward = 0
         week_start, week_end = all_week_ranges[i]
         week_label = to_jalali_label(week_start, week_end)
-        log_event(_get_username(), 'info', f"Week {week_label} | Target: {past_target}, Sales: {week_value}, Reward: {reward}")
         target_reward_boxes.append({
             "week": 6-(i-4),
             "label": week_label,
@@ -428,28 +410,31 @@ def main():
     st.markdown("---")
     # Member specific section
     if role in ['member', 'manager']:
-        log_event(_get_username(), 'info', f"Displaying metrics for user: {name}")
-        display_member_metrics(filter_data, name, week_ranges, today, current_week_start, show_name_as_you=True)
+        display_member_metrics(filtered_data, name, week_ranges, today, current_week_start, show_name_as_you=True)
 
     # Manager view of team members with slide navigation
     if role in ['manager', 'admin']:
-        team_members = team_users[
-            (team_users['name'] != name) &
-            (team_users['username_in_didar'].isin(filter_data['deal_owner'].unique()))
-        ]['username_in_didar'].unique()
+        # team_members = team_users[
+        #     (team_users['name'] != name) &
+        #     (team_users['username_in_didar'].isin(filtered_data['deal_owner'].unique()))
+        # ]['username_in_didar'].unique()
 
+        filtered_data['deal_value'] = filtered_data['deal_value'].astype(float)
+        team_members = filtered_data[
+            filtered_data['deal_created_time'] > pd.to_datetime(today - timedelta(days=7))
+        ].groupby('deal_owner')['deal_value'].sum().sort_values(ascending=False).index
         if len(team_members) > 0:
-            selected_member = st.selectbox("انتخاب عضو تیم", team_members, key="platform_member_select")
-            if selected_member:
-                log_event(_get_username(), 'info', f"Displaying metrics for selected member: {selected_member}")
-                display_member_metrics(filter_data, selected_member, week_ranges, today, current_week_start)
+            tabs = st.tabs(list(team_members))
+            for i, tab in enumerate(tabs):
+                with tab:
+                    display_member_metrics(filtered_data, team_members[i], week_ranges, today, current_week_start, False)
+
 
 def display_member_metrics(data, member, week_ranges, today, current_week_start, show_name_as_you=False):
     """
     Display metrics and charts for a specific team member.
     Always secures .dt access with checks to prevent AttributeError.
     """
-    log_event(_get_username(), 'info', f"Displaying member metrics for {member}")
     member_data = data[data['deal_owner'] == member]
     # Prepare member deal dates
     deal_created_col = ensure_datetime_col(member_data, 'deal_created_time')
@@ -478,7 +463,6 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
     
     with col1:
         today_mask = (deal_date_values == today)
-        log_event(_get_username(), 'debug', f"Displaying member count metrics for {member}")
         display_metrics(col1, [
             ("تعداد فروش امروز", member_data[today_mask].shape[0], ""),
             ("تعداد فروش این هفته", member_this_week_count, ""),
@@ -489,7 +473,6 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
         st.write(f'تاریخ: {jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}')
         
     with col2:
-        log_event(_get_username(), 'debug', f"Displaying member value metrics for {member}")
         display_metrics(col2, [
             ("مقدار فروش امروز", member_data[today_mask]['deal_value'].sum(), " تومان"),
             ("مقدار فروش این هفته", member_this_week_value, " تومان"),
@@ -500,30 +483,13 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
         st.write(f'تاریخ: {jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}')
         
     with st.expander('📋 لیست معاملات شما' if show_name_as_you else f'📋 لیست معاملات {member}', expanded=False):
-        st.dataframe(member_this_week_data, width=True, hide_index=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            log_event(_get_username(), 'debug', f"Member {member}: Download CSV")
-            st.download_button(
-                label="دانلود داده‌ها به صورت CSV",
-                data=convert_df(member_this_week_data),
-                file_name=f'deals{member}.csv',
-                mime='text/csv',
-            )
-        with col2:
-            log_event(_get_username(), 'debug', f"Member {member}: Download Excel")
-            st.download_button(
-                label="دانلود داده‌ها به صورت اکسل",
-                data=convert_df_to_excel(member_this_week_data),
-                file_name=f'deals{member}.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            )
+        st.dataframe(member_this_week_data, hide_index=True)
+        download_buttons(member_this_week_data, f"{member}_deals_this_week")
 
     # Member charts
     col1, col2 = st.columns(2)
     
     with col1:
-        log_event(_get_username(), 'debug', f"Plotting member weekly counts for {member}")
         df_member_counts = pd.DataFrame({
             'هفته': [f'{jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} - {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}' for start, end in week_ranges],
             'تعداد': member_counts,
@@ -532,7 +498,6 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
         st.plotly_chart(create_weekly_chart(df_member_counts, 'هفته', 'تعداد', 'تعداد فروش هفتگی', max_count_week))
 
     with col2:
-        log_event(_get_username(), 'debug', f"Plotting member weekly value for {member}")
         df_member_values = pd.DataFrame({
             'هفته': [f'{jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} - {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}' for start, end in week_ranges],
             'مقدار': member_values,
@@ -548,7 +513,6 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
     col1, col2 = st.columns(2)
     
     with col1:
-        log_event(_get_username(), 'debug', f"Displaying member average metrics for {member}")
         display_metrics(col1, [
             ("میانگین امروز", member_data[today_mask]['deal_value'].mean(), " تومان"),
             ("میانگین این هفته", member_this_week_avg, " تومان"),
@@ -559,7 +523,6 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
         st.write(f'تاریخ: {jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}')
     
     with col2:
-        log_event(_get_username(), 'debug', f"Plotting member weekly averages for {member}")
         df_avg = pd.DataFrame({
             'هفته': [f'{jdatetime.date.fromgregorian(date=start).strftime("%Y/%m/%d")} - {jdatetime.date.fromgregorian(date=end).strftime("%Y/%m/%d")}' for start, end in week_ranges],
             'میانگین': member_avgs,

@@ -6,10 +6,10 @@ import jdatetime
 from typing import Optional, Dict, List
 from utils.write_data import write_df_to_sheet
 from utils.sheetConnect import get_sheet_names
-from utils.func import convert_df, convert_df_to_excel, load_data_cached
-from utils.logger import log_event
+from utils.funcs import download_buttons, load_data_cached, handel_errors
 from utils.custom_css import apply_custom_css
 from utils.sidebar import render_sidebar
+
 
 # --- Constants ---
 MONTH_NAMES = {
@@ -20,25 +20,28 @@ MONTH_NAMES = {
 }
 
 # --- Utility Functions ---
-def get_username() -> str:
-    """Get current username for logging."""
-    try:
-        return st.session_state.get('userdata', {}).get('name', 'unknown')
-    except Exception:
-        return 'unknown'
-
 @st.cache_data(ttl=600)
-def safe_to_jalali(date_value) -> Optional[jdatetime.date]:
+def safe_to_jalali(date_value) -> Optional[str]:
     """Convert Gregorian date to Jalali date safely."""
     try:
-        return jdatetime.date.fromgregorian(date=pd.to_datetime(date_value).date())
+        jalali_date = jdatetime.date.fromgregorian(date=pd.to_datetime(date_value).date())
+        return jalali_date.strftime('%Y-%m-%d')
     except Exception as e:
-        log_event(get_username(), 'error', f"Date conversion error: {e}")
+        handel_errors(e, "Date conversion error", show_error=False)
         return None
 
-def get_jalali_month_string(date_obj: jdatetime.date) -> str:
+def get_jalali_month_string(date_obj) -> str:
     """Get year-month string from Jalali date."""
-    return f"{date_obj.year}-{date_obj.month:02d}"
+    if isinstance(date_obj, str):
+        # Parse string format 'YYYY-MM-DD' to extract year and month
+        try:
+            year, month = date_obj.split('-')[:2]
+            return f"{year}-{month}"
+        except Exception:
+            return None
+    elif isinstance(date_obj, jdatetime.date):
+        return f"{date_obj.year}-{date_obj.month:02d}"
+    return None
 
 # --- Data Processing Functions ---
 def find_eval_sheet(target_month: str, sheet_names: List[str]) -> Optional[str]:
@@ -58,7 +61,7 @@ def find_eval_sheet(target_month: str, sheet_names: List[str]) -> Optional[str]:
         return matching_sheets[0] if matching_sheets else None
         
     except Exception as e:
-        log_event(get_username(), 'error', f"Error finding eval sheet: {e}")
+        handel_errors(e, "Error finding eval sheet", show_error=False)
         return None
 
 def calculate_wolf_scores(wolf_data: pd.DataFrame) -> pd.DataFrame:
@@ -84,7 +87,7 @@ def calculate_wolf_scores(wolf_data: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame.from_dict(persons, orient='index').reset_index(drop=True)
         
     except Exception as e:
-        log_event(get_username(), 'error', f"Error calculating wolf scores: {e}")
+        handel_errors(e, "Error calculating wolf scores", show_error=False)
         return pd.DataFrame()
     
 def calculate_sherlock_scores(wolf_data: pd.DataFrame) -> pd.DataFrame:
@@ -110,7 +113,7 @@ def calculate_sherlock_scores(wolf_data: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame.from_dict(persons, orient='index').reset_index(drop=True)
         
     except Exception as e:
-        log_event(get_username(), 'error', f"Error calculating sherlock scores: {e}")
+        handel_errors(e, "Error calculating sherlock scores", show_error=False)
         return pd.DataFrame()
 
 def calculate_reward_percentages(
@@ -191,7 +194,7 @@ def calculate_reward_percentages(
         return result
 
     except Exception as e:
-        log_event(get_username(), 'error', f"Error calculating reward percentages: {e}")
+        handel_errors(e, "Error calculating reward percentages", show_error=False)
         return {}
     
 def calculate_reward_details(
@@ -223,7 +226,7 @@ def calculate_reward_details(
         return member_stats
         
     except Exception as e:
-        log_event(get_username(), 'error', f"Error calculating rewards: {e}",)
+        handel_errors(e, "Error calculating rewards", show_error=False)
         return pd.DataFrame()
 
 # --- UI Display Functions ---
@@ -327,7 +330,7 @@ def display_team_metrics(deals: pd.DataFrame, parameters: Dict) -> float:
         return reward_amount
         
     except Exception as e:
-        log_event(get_username(), 'error', f"Error displaying team metrics: {e}")
+        handel_errors(e, "Error displaying team metrics", show_error=False)
         raise
 
 def display_deals_chart(deals: pd.DataFrame, member_name: Optional[str] = None):
@@ -377,7 +380,7 @@ def display_deals_chart(deals: pd.DataFrame, member_name: Optional[str] = None):
             st.plotly_chart(fig, config={'responsive': True})
             
     except Exception as e:
-        log_event(get_username(), 'error', f"Error displaying chart: {e}")
+        handel_errors(e, "Error displaying chart", show_error=False)
 
 def display_member_details(deals: pd.DataFrame, member_name: str):
     """Display detailed statistics for a team member."""
@@ -397,33 +400,20 @@ def display_member_details(deals: pd.DataFrame, member_name: str):
                 container = cols[0]
             else:
                 container = cols[1]
-            display_sale_type_metrics(deals, sale_type, container)
+            display_sale_type_metrics(member_deals, sale_type, container)
         
+
         # Display charts
         display_deals_chart(member_deals, member_name)
         
         # Display deals list
         with st.expander(f"📋 لیست معاملات {member_name}", expanded=False):
             st.dataframe(member_deals, width='stretch', hide_index=True)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    "دانلود CSV",
-                    convert_df(member_deals),
-                    f'deals_{member_name}.csv',
-                    'text/csv'
-                )
-            with col2:
-                st.download_button(
-                    "دانلود Excel",
-                    convert_df_to_excel(member_deals),
-                    f'deals_{member_name}.xlsx',
-                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                )
+        
+            download_buttons(member_deals, f'deals_{member_name}')
                 
     except Exception as e:
-        log_event(get_username(), 'error', f"Error displaying member details: {e}")
+        handel_errors(e, "Error displaying member details", show_error=False)
 
 # --- Main Application ---
 def sales():
@@ -443,7 +433,6 @@ def sales():
     teams = [t.strip() for t in userdata.get('team', '').split('|')]
     role = st.session_state.userdata.get('role', '')
     username_in_didar = st.session_state.userdata.get('username_in_didar', '')
-    get_username()
 
     if 'sales' not in teams:
         st.error("شما به این بخش دسترسی ندارید")
@@ -460,6 +449,10 @@ def sales():
     
     # Prepare deals data
     deals = st.session_state.deals_data.copy()
+    deals = deals[
+        (deals['deal_type'].isin(['فروش جدید', 'تمدید'])) &
+        (deals['deal_status'] == 'Won')
+    ]
     deals = deals[deals['deal_owner'].isin(team_members)]
     deals['deal_created_time'] = pd.to_datetime(deals['deal_created_time']).dt.date
     deals['jalali_date'] = deals['deal_created_time'].apply(safe_to_jalali)
@@ -506,7 +499,7 @@ def sales():
         parameters_data = load_data_cached(spreadsheet_key='MAIN_SPREADSHEET_ID', sheet_name='Sales team parameters')
         
     except Exception as e:
-        log_event(get_username(), 'error', f"Error loading supporting data: {e}")
+        handel_errors(e, "Error loading supporting data", show_error=False)
         st.error("خطا در بارگذاری داده‌ها")
         return
     parameters = parameters_data.loc[0, ['Target', 'Reward percent', 'Wolf1', 'Wolf2', 'Sherlock', 'Performance']].to_dict()
@@ -650,7 +643,6 @@ def sales():
                         sheet_name='Sales team parameters',
                         clear_sheet=True
                     )
-                log_event(get_username(), 'info', f"Updated sales team parameters for {target_month} from {sheet_name}")
     # Display team-wide charts
     display_deals_chart(deals_filtered)
     
@@ -658,21 +650,7 @@ def sales():
     with st.expander("📋 لیست کل معاملات تیم", expanded=False):
         st.dataframe(deals_filtered, width='stretch', hide_index=True)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button(
-                "دانلود CSV",
-                convert_df(deals_filtered),
-                f'team_deals_{target_month}.csv',
-                'text/csv'
-            )
-        with col2:
-            st.download_button(
-                "دانلود Excel",
-                convert_df_to_excel(deals_filtered),
-                f'team_deals_{target_month}.xlsx',
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
+        download_buttons(deals_filtered, f'team_deals_{target_month}')
     
     if role not in ['manager', 'admin']:
         st.markdown('---')
@@ -690,8 +668,6 @@ def sales():
             with tabs[idx]:
                 display_member_details(deals_filtered, team_members[idx])
 
-        # Log page view
-        log_event(get_username(), 'page_view', "Viewed Sales Dashboard")
-
+    
 if __name__ == "__main__":
     sales()

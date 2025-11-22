@@ -4,10 +4,17 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import jdatetime
-from utils.func import convert_df, convert_df_to_excel
+from utils.funcs import download_buttons, handel_errors
 from utils.custom_css import apply_custom_css
-from utils.logger import log_event
 from utils.sidebar import render_sidebar
+
+
+# Prepare X axis labels: day/month for start and end of week in Jalali (e.g., 01/03 - 07/03)
+def to_jalali_label(start, end):
+    start_j = jdatetime.date.fromgregorian(date=start)
+    end_j = jdatetime.date.fromgregorian(date=end)
+    return f"{start_j.day:02d}/{start_j.month:02d} - {end_j.day:02d}/{end_j.month:02d}"
+
 
 def ensure_datetime_col(df, col):
     """Ensure a column is in datetime64 format."""
@@ -17,7 +24,7 @@ def ensure_datetime_col(df, col):
         try:
             return pd.to_datetime(df[col], errors='coerce')
         except Exception as e:
-            log_event(st.session_state.userdata.get('name', ''), "Error", f"Failed to convert '{col}': {e}")
+            handel_errors(e, f"Error converting column '{col}' to datetime", show_error=False, raise_exception=False)
             return df[col]
     return df[col]
 
@@ -33,7 +40,7 @@ def calculate_weekly_metrics(data, start_date, end_date):
         avg = value / count if count > 0 else 0
         return count, value, avg
     except Exception as e:
-        log_event(st.session_state.userdata.get('name', ''), "Error", f"Failed to calculate metrics: {e}")
+        handel_errors(e, "Failed to calculate metrics", show_error=False, raise_exception=False)
         return 0, 0, 0
 
 def create_weekly_chart(df, x_col, y_col, title, highlight_idx=None):
@@ -52,7 +59,7 @@ def create_weekly_chart(df, x_col, y_col, title, highlight_idx=None):
             fig.update_traces(marker_color=colors)
         return fig
     except Exception as e:
-        log_event(st.session_state.userdata.get('name', ''), "Error", f"Error creating chart: {e}")
+        handel_errors(e, "Error creating chart", show_error=False, raise_exception=False)
         return go.Figure()
 
 def display_metrics(col, metrics):
@@ -63,7 +70,7 @@ def display_metrics(col, metrics):
         try:
             col.metric(label, f"{value:,.0f}{suffix}")
         except Exception as e:
-            log_event(st.session_state.userdata.get('name', ''), "Error", f"Error displaying '{label}': {e}")
+            handel_errors(e, f"Error displaying metric '{label}'", show_error=False, raise_exception=False)
 
 def normalize_owner(owner: str) -> str:
     """Normalize owner names (e.g., merge day/night shifts)."""
@@ -93,17 +100,19 @@ def main():
         st.error("شما به این بخش دسترسی ندارید")
         return
 
-    team_users = st.session_state.users[
-        (st.session_state.users['team'].apply(lambda x: 'b2b' in [team.strip() for team in x.split('|')]))&
-        (st.session_state.users['role'] != 'admin')
-    ]
+    # team_users = st.session_state.users[
+    #     (st.session_state.users['team'].apply(lambda x: 'b2b' in [team.strip() for team in x.split('|')]))&
+    #     (st.session_state.users['role'] != 'admin')
+    # ]
 
     data = st.session_state.deals_data.copy()
 
     # Filter data for B2B team
     filtered_data = data[
+        # (data['deal_owner'].isin(team_users['username_in_didar'].values)) &
         (data['deal_source'].isin(['مهمان واسطه', 'فرودگاه'])) &
-        (data['deal_owner'].isin(team_users['username_in_didar'].values))
+        (data['deal_type'].isin(['تمدید', 'فروش جدید'])) &
+        (data['deal_status'] == 'Won')
     ].copy()
 
     # Normalize owner names
@@ -112,15 +121,14 @@ def main():
     # Ensure datetime column
     filtered_data['deal_created_time'] = ensure_datetime_col(filtered_data, 'deal_created_time')
     if filtered_data['deal_created_time'] is None:
-        st.error("خطا در پردازش تاریخ معاملات")
+        st.warning("مشکلی به وجود آمده است. لطفا با ادمین تماس بگیرید.")
         return
 
     # Calculate date ranges
     today = datetime.today().date()
     try:
         start_date = jdatetime.date(1404, 2, 28).togregorian()
-    except Exception as e:
-        log_event(name, "Error", f"Date conversion error: {e}")
+    except Exception:
         start_date = today
 
     # Filter by start date
@@ -147,7 +155,7 @@ def main():
         with col2:
             st.info(f"امروز: {jalali_end.strftime('%Y/%m/%d')}")
     except Exception as e:
-        log_event(name, "Error", f"Jalali date error: {e}")
+        handel_errors(e, "Jalali date error", show_error=False, raise_exception=False)
 
     # Calculate team metrics
     weekly_metrics = [calculate_weekly_metrics(filtered_data, start, end) for start, end in week_ranges]
@@ -193,7 +201,7 @@ def main():
             'تعداد': weekly_counts,
             'بازه زمانی': [f'{jdatetime.date.fromgregorian(date=s).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=e).strftime("%Y/%m/%d")}' for s, e in week_ranges]
         })
-        st.plotly_chart(create_weekly_chart(df_counts, 'هفته', 'تعداد', 'تعداد فروش هفتگی تیم', max_count_week), use_container_width=True)
+        st.plotly_chart(create_weekly_chart(df_counts, 'هفته', 'تعداد', 'تعداد فروش هفتگی تیم', max_count_week), config={'responsive': True})
 
     with col2:
         df_values = pd.DataFrame({
@@ -201,7 +209,7 @@ def main():
             'مقدار': weekly_values,
             'بازه زمانی': [f'{jdatetime.date.fromgregorian(date=s).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=e).strftime("%Y/%m/%d")}' for s, e in week_ranges]
         })
-        st.plotly_chart(create_weekly_chart(df_values, 'هفته', 'مقدار', 'مقدار فروش هفتگی تیم', max_value_week), use_container_width=True)
+        st.plotly_chart(create_weekly_chart(df_values, 'هفته', 'مقدار', 'مقدار فروش هفتگی تیم', max_value_week), config={'responsive': True})
 
     # Team average metrics
     st.subheader("📊 میانگین معاملات تیم")
@@ -221,7 +229,7 @@ def main():
             'میانگین': weekly_avgs,
             'بازه زمانی': [f'{jdatetime.date.fromgregorian(date=s).strftime("%Y/%m/%d")} تا {jdatetime.date.fromgregorian(date=e).strftime("%Y/%m/%d")}' for s, e in week_ranges]
         })
-        st.plotly_chart(create_weekly_chart(df_avg, 'هفته', 'میانگین', 'میانگین معامله‌های تیم', max_avg_week), use_container_width=True)
+        st.plotly_chart(create_weekly_chart(df_avg, 'هفته', 'میانگین', 'میانگین معامله‌های تیم', max_avg_week), config={'responsive': True})
 
     # Target and reward section
     st.subheader("🎯 تارگت پاداش")
@@ -254,7 +262,108 @@ def main():
             height=250,
             margin=dict(l=20, r=20, t=20, b=20)
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, config={'responsive': True})
+
+        st.markdown("---")
+
+    # Show sales for the last 10 weeks (X axis: start and end day/month of each week)
+    st.markdown("---")
+    num_weeks_sales = 10   # Number of weeks to display in the sales chart
+    num_weeks_target_reward = 6  # Number of weeks to display target/reward boxes
+    st.subheader(f"📊 فروش {num_weeks_sales} هفته اخیر")
+    
+    # Defensive extraction of .dt.date
+    deal_created_col = ensure_datetime_col(filtered_data, 'deal_created_time')
+    deal_date_values = deal_created_col.dt.date if pd.api.types.is_datetime64_any_dtype(deal_created_col) else deal_created_col
+
+    # Calculate the last 10 week ranges (ending before the current week)
+    all_week_ranges = []
+    for i in range(num_weeks_sales, 0, -1):
+        week_start = current_week_start - timedelta(weeks=i)
+        week_end = week_start + timedelta(days=6)
+        all_week_ranges.append((week_start, week_end))
+
+    # Calculate weekly sales for each of the last 10 weeks
+    all_weekly_sales = []
+    for start, end in all_week_ranges:
+        mask = (deal_date_values >= start) & (deal_date_values <= end)
+        value = filtered_data[mask]['deal_value'].astype(float).sum() / 10
+        all_weekly_sales.append(value)
+
+    weeks_labels = [
+        to_jalali_label(start, end)
+        for start, end in all_week_ranges
+    ]
+
+    # Plot sales for last 10 weeks
+    fig_sales = go.Figure()
+    fig_sales.add_trace(go.Bar(
+        x=weeks_labels,
+        y=all_weekly_sales,
+        name="Sales",
+        marker_color="#0984e3",
+        text=[f"{v:,.0f}" for v in all_weekly_sales],
+        textposition='outside',
+    ))
+    # set max y 1.1 times the max sales for better visibility
+    max_sales = max(all_weekly_sales) if all_weekly_sales else 0
+    fig_sales.update_layout(
+        title="",
+        yaxis_range=[0, max_sales * 1.1],
+        xaxis_title="هفته (شروع - پایان)",
+        yaxis_title="فروش (تومان)",
+        font=dict(family="Tahoma", size=16),
+        height=500,
+        margin=dict(l=20, r=20, t=60, b=20),
+        showlegend=False
+    )
+    st.plotly_chart(fig_sales, config={'responsive': True})
+
+    # Calculate target and reward for the last 6 weeks (ending before current week)
+    st.markdown("---")
+    st.subheader(f"🎯 تارگت & 💰 پاداش ({num_weeks_target_reward} هفته اخیر)")
+
+    # For each of the last 6 weeks, calculate target and reward
+    target_reward_boxes = []
+    for i in range(num_weeks_sales - num_weeks_target_reward, num_weeks_sales):
+        # Look back at the 4 weeks before the current week
+        start_idx = max(0, i-4)
+        end_idx = i  # up to but not including current week
+        prev_weeks = all_weekly_sales[start_idx:end_idx]
+        if prev_weeks:
+            past_target = max(prev_weeks) * 0.9
+        else:
+            past_target = 0
+        week_value = all_weekly_sales[i]
+        if past_target > 0 and week_value > past_target:
+            reward = reward_percentage * (week_value - past_target)
+        else:
+            reward = 0
+        week_start, week_end = all_week_ranges[i]
+        week_label = to_jalali_label(week_start, week_end)
+
+        target_reward_boxes.append({
+            "week": 6-(i-4),
+            "label": week_label,
+            "target": past_target,
+            "reward": reward,
+            "sales": week_value
+        })
+
+    # Display target and reward for each of the last 6 weeks in separate boxes
+    cols = st.columns(num_weeks_target_reward)
+    for idx, box in enumerate(target_reward_boxes):
+        with cols[idx]:
+            st.markdown(f"<div style='text-align:center; font-size:1.1em; font-weight:bold; margin-bottom:8px;'>{box['label']}</div>", unsafe_allow_html=True)
+            st.markdown(f"{box['week']:,.0f} هفته پیش")
+            st.metric("تارگت", f"{box['target']:,.0f} تومان")
+            st.metric("فروش", f"{box['sales']:,.0f} تومان")
+            if box['reward'] > 0:
+                st.success(f"پاداش: +{box['reward']:,.0f} تومان")
+            else:
+                st.warning("No Reward")
+
+    st.subheader("👥 آمار اعضای تیم")
 
     # Member metrics
     if role in ['member', 'manager']:
@@ -262,15 +371,21 @@ def main():
 
     # Manager view
     if role in ['manager', 'admin']:
-        team_members = team_users[
-            (team_users['name'] != name) &
-            (team_users['username_in_didar'].isin(filtered_data['deal_owner'].unique()))
-        ]['username_in_didar'].unique()
+        # team_members = team_users[
+        #     (team_users['name'] != name) &
+        #     (team_users['username_in_didar'].isin(filtered_data['deal_owner'].unique()))
+        # ]['username_in_didar'].unique()
+
+        filtered_data['deal_value'] = filtered_data['deal_value'].astype(float)
+        team_members = filtered_data[
+            filtered_data['deal_created_time'] > pd.to_datetime(today - timedelta(days=7))
+        ].groupby('deal_owner')['deal_value'].sum().sort_values(ascending=False).index
 
         if len(team_members) > 0:
-            selected_member = st.selectbox("انتخاب عضو تیم", team_members, key="b2b_member_select")
-            if selected_member:
-                display_member_metrics(filtered_data, selected_member, week_ranges, today, current_week_start, False)
+            tabs = st.tabs(list(team_members))
+            for i, tab in enumerate(tabs):
+                with tab:
+                    display_member_metrics(filtered_data, team_members[i], week_ranges, today, current_week_start, False)
 
 def display_member_metrics(data, member, week_ranges, today, current_week_start, show_as_you=False):
     """Display metrics for a specific member."""
@@ -312,13 +427,16 @@ def display_member_metrics(data, member, week_ranges, today, current_week_start,
 
     # Data table
     with st.expander('📋 لیست معاملات' + (' شما' if show_as_you else f' {member}'), expanded=False):
-        st.dataframe(this_week_data, hide_index=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button("دانلود CSV", convert_df(this_week_data), f'deals_{member}.csv', 'text/csv')
-        with col2:
-            st.download_button("دانلود اکسل", convert_df_to_excel(this_week_data), f'deals_{member}.xlsx', 
-                             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        st.dataframe(member_data , hide_index=True)
+        download_buttons(this_week_data, f'deals_{member}')
+
+
+def get_username():
+    """Helper to get current user for logging."""
+    try:
+        return st.session_state.get('userdata', {}).get('name', 'unknown')
+    except Exception:
+        return 'unknown'
 
 if __name__ == "__main__":
     main()

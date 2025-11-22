@@ -105,7 +105,7 @@ def append_to_sheet(row, sheet_name):
     if not gs_client:
         return False
 
-    spreadsheet_id = st.secrets.get("SPREADSHEET_ID")['REQ_SPREADSHEET_ID']
+    spreadsheet_id = st.secrets.get("SPREADSHEET_IDS")['REQ_SPREADSHEET_ID']
     if not spreadsheet_id:
         print("SPREADSHEET_ID is missing in Streamlit secrets.")
         return False

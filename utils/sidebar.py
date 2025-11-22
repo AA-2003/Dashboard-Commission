@@ -1,7 +1,7 @@
 import streamlit as st
 
 from utils.sheetConnect import load_sheet
-from utils.func import load_data_cached
+from utils.funcs import load_data_cached
 from utils.logger import log_event
 
 def refresh_data():
