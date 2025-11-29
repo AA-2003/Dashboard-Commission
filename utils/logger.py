@@ -2,7 +2,11 @@
 # simple logger setup for adding logs to logs sheet
 
 import streamlit as st
+import logging
 from .sheetConnect import append_to_sheet, authenticate_google_sheets
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("logger")
 
 PRODUCTION = st.secrets.get("PRODUCTION", False)
 def log_event(user: str, event_type: str, message: str):
@@ -27,5 +31,5 @@ def log_event(user: str, event_type: str, message: str):
     if PRODUCTION:
         print(f"LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")
     else:
-        print(f"DEV LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")
+        logger(f"DEV LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")
         append_to_sheet(client=authenticate_google_sheets(), spreadsheet_id=spreadsheet_id, sheet_name='Logs', row_data=[log_data])
