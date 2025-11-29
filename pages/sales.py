@@ -475,7 +475,7 @@ def sales():
     # Load supporting data
     try:
         # Load Wolf of Wall Street data
-        wolf_data = load_data_cached(spreadsheet_key='MAIN_SPREADSHEET_ID', sheet_name='Wolf')
+        wolf_data = load_data_cached(spreadsheet_key='DEALS_SPREADSHEET_ID', sheet_name='Wolf')
         wolf_data = wolf_data[
             (~wolf_data['date'].isna())
             | (~wolf_data['name'].isna())

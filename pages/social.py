@@ -189,7 +189,7 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)'
             )
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, config={'responsive': True})
         except Exception as e:
             handel_errors(e, "Error drawing reward progress pie", show_error=False)
 

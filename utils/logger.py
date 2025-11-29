@@ -25,6 +25,6 @@ def log_event(user: str, event_type: str, message: str):
     spreadsheet_id = st.secrets.get("SPREADSHEET_IDS").get("MAIN_SPREADSHEET_ID")
 
     if PRODUCTION:
-        append_to_sheet(client=authenticate_google_sheets(), spreadsheet_id=spreadsheet_id, sheet_name='Logs', row_data=[log_data])
-    else:
         print(f"LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")
+    else:
+        append_to_sheet(client=authenticate_google_sheets(), spreadsheet_id=spreadsheet_id, sheet_name='Logs', row_data=[log_data])

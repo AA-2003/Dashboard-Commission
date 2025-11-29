@@ -1,16 +1,18 @@
 import streamlit as st
+from datetime import datetime
+
+from utils.sidebar import render_sidebar
 from utils.custom_css import apply_custom_css
 from utils.write_data import append_to_sheet
-from datetime import datetime
 
 def support():
     """Support page content."""
     st.set_page_config(
         page_title="پشتیبانی", 
         layout="wide",
-    )
+    )       
     apply_custom_css()
-
+    render_sidebar()
 
     st.title("صفحه پشتیبانی")
 
