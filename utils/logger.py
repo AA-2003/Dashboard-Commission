@@ -31,5 +31,5 @@ def log_event(user: str, event_type: str, message: str):
     if PRODUCTION:
         print(f"LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")
     else:
-        logger(f"DEV LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")
+        logger.info(f"DEV LOG [{log_data['timestamp']}] - User: {user}, Type: {event_type}, Message: {message}")
         append_to_sheet(client=authenticate_google_sheets(), spreadsheet_id=spreadsheet_id, sheet_name='Logs', row_data=[log_data])
