@@ -3,7 +3,7 @@ from datetime import datetime
 
 from utils.sidebar import render_sidebar
 from utils.custom_css import apply_custom_css
-from utils.write_data import append_to_sheet
+from utils.sheetConnect import append_to_sheet, authenticate_google_sheets
 
 def support():
     """Support page content."""
@@ -25,7 +25,7 @@ def support():
         if submit_button:
             if name  and email and des:
                 row = [datetime.now().strftime('%Y-%m-%d %H:%M:%S'), name, email, des, 'Commission Dashboard']
-                append_to_sheet(row, 'Dashboard reports')
+                append_to_sheet(authenticate_google_sheets(), 'REQ_SPREADSHEET_ID', 'Dashboard reports', row)
                 st.success("درخواست شما با موفقیت ثبت شد!") 
             else:
                 st.warning("لطفا همه فیلدها را پر کنید")

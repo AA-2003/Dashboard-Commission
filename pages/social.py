@@ -4,10 +4,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import jdatetime
 from typing import Optional
-from utils.write_data import write_df_to_sheet
 from utils.funcs import load_data_cached, handel_errors, download_buttons
 from utils.custom_css import apply_custom_css
 from utils.sidebar import render_sidebar 
+from utils.sheetConnect import write_df_to_sheet, authenticate_google_sheets
 
 # --- Utility Functions ---
 def get_username() -> str:
@@ -483,7 +483,7 @@ def render_settings_tab(parameters: dict, deals_data: pd.DataFrame):
             deals_data['deal_value'] = deals_data['deal_value'].astype(float)/10
             month_records = deals_data.groupby('checkout_jalali_year_month')['deal_value'].sum().reset_index(name='deal_value_sum')
             
-            updated_record = month_records[month_records['deal_value_sum'] >= record]
+            updated_record = month_records[month_records['deal_value_sum'] > record]
 
             if not updated_record.empty:
                 record = updated_record['deal_value_sum'].max()
@@ -500,7 +500,7 @@ def render_settings_tab(parameters: dict, deals_data: pd.DataFrame):
                     }])
                 success = False
                 try:
-                    success = write_df_to_sheet(df, sheet_name='Social team parameters')
+                    success = write_df_to_sheet(authenticate_google_sheets(), 'MAIN_SPREADSHEET_ID', 'Social team parameters', df, clear_existing=True)
 
                 except Exception as e:
                     handel_errors(e, "Failed to write Social team parameters")

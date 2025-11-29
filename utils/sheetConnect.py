@@ -308,3 +308,44 @@ def get_sheet_names(
         print(f"Error retrieving sheet names: {e}")
         return None
     return None
+
+
+def write_df_to_sheet(
+    client: gspread.Client,
+    spreadsheet_id: str,
+    sheet_name: str,
+    df: pd.DataFrame,
+    clear_existing: bool = False
+) -> bool:
+    """
+    Write a pandas DataFrame to a Google Sheet, replacing existing content.
+    
+    Args:
+        client: Authenticated gspread client
+        spreadsheet_id: Google Spreadsheet ID
+        sheet_name: Name of the worksheet to write to
+        df: DataFrame to write
+    Returns:
+        True if write is successful, False otherwise
+    """
+    if not client:
+        print("No authenticated client provided")
+        return False
+    
+    try:
+        spreadsheet = client.open_by_key(spreadsheet_id)
+        worksheet = spreadsheet.worksheet(sheet_name)
+        if clear_existing:
+            worksheet.clear()
+        worksheet.update([df.columns.values.tolist()] + df.values.tolist(), value_input_option='USER_ENTERED')
+        print(f"Wrote DataFrame to '{sheet_name}'")
+        return True
+    except gspread.exceptions.SpreadsheetNotFound:
+        print(f"Spreadsheet with ID '{spreadsheet_id}' not found")
+    except gspread.exceptions.WorksheetNotFound:
+        print(f"Worksheet '{sheet_name}' not found")
+    except gspread.exceptions.APIError as e:
+        print(f"Google Sheets API error: {e}")
+    except Exception as e:
+        print(f"Unexpected error writing to sheet: {e}")
+    return False

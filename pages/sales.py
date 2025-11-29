@@ -4,11 +4,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import jdatetime
 from typing import Optional, Dict, List
-from utils.write_data import write_df_to_sheet
 from utils.sheetConnect import get_sheet_names
 from utils.funcs import download_buttons, load_data_cached, handel_errors
 from utils.custom_css import apply_custom_css
 from utils.sidebar import render_sidebar
+from utils.sheetConnect import write_df_to_sheet, authenticate_google_sheets
 
 
 # --- Constants ---
@@ -638,10 +638,11 @@ def sales():
                     لطفاً قبل از انجام این کار از صحت داده‌ها اطمینان حاصل کنید.
                     """)
                     write_df_to_sheet(
-                        parameters_data,
+                        authenticate_google_sheets(),
                         spreadsheet_key='MAIN_SPREADSHEET_ID',
                         sheet_name='Sales team parameters',
-                        clear_sheet=True
+                        df=parameters_data,
+                        clear_existing=True
                     )
     # Display team-wide charts
     display_deals_chart(deals_filtered)
