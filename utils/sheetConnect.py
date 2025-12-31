@@ -12,7 +12,6 @@ import pandas as pd
 import streamlit as st
 from google.oauth2.service_account import Credentials
 
-
 # Google Sheets API scopes
 SCOPES = [
     'https://www.googleapis.com/auth/spreadsheets',
@@ -24,7 +23,6 @@ REQUIRED_CREDENTIAL_KEYS = [
     "type", "project_id", "private_key_id", "private_key",
     "client_email", "client_id", "auth_uri", "token_uri"
 ]
-
 
 def _validate_credentials(creds_dict: dict) -> tuple[bool, Optional[str]]:
     """
@@ -84,7 +82,6 @@ def authenticate_google_sheets() -> Optional[gspread.Client]:
         # Create credentials and authorize client
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         client = gspread.authorize(creds)
-        print("Successfully authenticated with Google Sheets API")
         return client
         
     except Exception as e:
@@ -178,6 +175,7 @@ def load_data_from_sheet(
     return None
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_sheet(
     key: str,
     sheet_name: str = 'Data',
@@ -212,8 +210,6 @@ def load_sheet(
     
     return df
 
-
-@st.cache_data(ttl=600, show_spinner=False)
 def load_sheet_uncached(
     sheet_name: str = 'Data',
     use_eval_spreadsheet: bool = False
@@ -308,7 +304,6 @@ def get_sheet_names(
         print(f"Error retrieving sheet names: {e}")
         return None
     return None
-
 
 def write_df_to_sheet(
     client: gspread.Client,

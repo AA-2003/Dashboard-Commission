@@ -54,9 +54,9 @@ def handel_errors(e: Exception, message: str = "Unhandled error", show_error: bo
     if show_error:
         st.error("خطای رخ داده است. لطفا با ادمین تماس بگیرید.")
 
-    production = st.secrets.get('GENERAL', {}).get("PRODUCTION", False)
+    development = st.secrets.get('GENERAL', {}).get("DEVELOPMENT", False)
 
-    if production and raise_exception:
+    if development and raise_exception:
         raise e    
 
 def download_buttons(dataframe: pd.DataFrame, base_filename: str):

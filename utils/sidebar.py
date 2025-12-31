@@ -16,6 +16,8 @@ def render_sidebar():
         try:
             users = load_sheet(key='MAIN_SPREADSHEET_ID', sheet_name='Users')
             st.session_state.users = users
+            all_teams_users = load_sheet(key='QC_SPREADSHEET_ID', sheet_name='Users') 
+            st.session_state.all_teams_users = all_teams_users
         except Exception as e:
             log_event('', "Error loading users data", str(e))
             st.error("خطا در بارگذاری داده‌ها")

@@ -17,7 +17,7 @@ def get_username() -> str:
     except Exception:
         return 'unknown'
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, show_spinner=False)
 def safe_to_jalali(date_value) -> Optional[jdatetime.date]:
     """Convert Gregorian date to Jalali date safely."""
     try:
@@ -37,6 +37,11 @@ def get_target_month(month_choice: str) -> str:
         if month_choice == 'ماه پیش':
             last_month = (today.replace(day=1) - jdatetime.timedelta(days=1))
             return get_jalali_month_string(last_month)
+        elif month_choice == 'دو ماه پیش':
+            first_of_this_month = today.replace(day=1)
+            last_month = first_of_this_month - jdatetime.timedelta(days=1)
+            two_months_ago = (last_month.replace(day=1) - jdatetime.timedelta(days=1))
+            return get_jalali_month_string(two_months_ago)
         else:
             return get_jalali_month_string(today)
 

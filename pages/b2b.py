@@ -72,13 +72,6 @@ def display_metrics(col, metrics):
         except Exception as e:
             handel_errors(e, f"Error displaying metric '{label}'", show_error=False, raise_exception=False)
 
-def normalize_owner(owner: str) -> str:
-    """Normalize owner names (e.g., merge day/night shifts)."""
-    if pd.isna(owner):
-        return owner
-    if owner in ["محمد آبساران/روز"]:
-        return "محمد آبساران"
-    return owner
 
 def main():
     """B2B team dashboard."""
@@ -115,8 +108,6 @@ def main():
         (data['deal_status'] == 'Won')
     ].copy()
 
-    # Normalize owner names
-    filtered_data['deal_owner'] = filtered_data['deal_owner'].apply(normalize_owner)
 
     # Ensure datetime column
     filtered_data['deal_created_time'] = ensure_datetime_col(filtered_data, 'deal_created_time')

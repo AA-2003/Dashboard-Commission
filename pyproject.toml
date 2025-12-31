@@ -9,6 +9,7 @@ dependencies = [
     "google-cloud>=0.34.0",
     "google-cloud-bigquery>=3.35.0",
     "gspread>=6.2.1",
+    "ipykernel>=7.1.0",
     "jdatetime>=5.2.0",
     "numpy>=2.2.5",
     "openpyxl>=3.1.5",

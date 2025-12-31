@@ -95,11 +95,6 @@ def main():
         st.error("شما به این بخش دسترسی ندارید")
         return
 
-    # team_users = st.session_state.users[
-    #     (st.session_state.users['team'].apply(lambda x: 'platform' in [team.strip() for team in x.split('|')]))&
-    #     (st.session_state.users['role'] != 'admin')
-    # ]
-
     data = st.session_state.deals_data.copy()
     
     # Filter data for Platform team
