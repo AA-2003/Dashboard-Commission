@@ -21,9 +21,12 @@ def get_username() -> str:
 def safe_to_jalali(date_value) -> Optional[jdatetime.date]:
     """Convert Gregorian date to Jalali date safely."""
     try:
+        if date_value is None or pd.isna(date_value):
+            return None
         return jdatetime.date.fromgregorian(date=pd.to_datetime(date_value).date())
     except Exception as e:
-        handel_errors(e, "safe_to_jalali conversion error", show_error=False, raise_exception=False)
+        st.write(date_value is None or pd.isna(date_value))
+        handel_errors(e, "safe_to_jalali conversion error")
         return None
 
 def get_jalali_month_string(date_obj: jdatetime.date) -> str:
@@ -46,7 +49,7 @@ def get_target_month(month_choice: str) -> str:
             return get_jalali_month_string(today)
 
     except Exception as e:
-        handel_errors(e, "Error in get_target_month", show_error=False)
+        handel_errors(e, "Error in get_target_month")
 
 # --- Display Functions ---
 def display_metrics(deals_df: pd.DataFrame, selected_channels: list = None):
@@ -111,7 +114,7 @@ def plot_daily_trend(df: pd.DataFrame, date_col: str, value_col: str, title: str
         st.plotly_chart(fig, use_container_width=True, key=f'plot-{title}')
 
     except Exception as e:
-        handel_errors(e, "plot_daily_trend error", show_error=False)
+        handel_errors(e, "plot_daily_trend error")
 
 def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, user_filter: str = None):
     """
@@ -158,7 +161,7 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                 lambda x: x.strftime('%Y/%m/%d') if x else ""
             )
         except Exception as e:
-            handel_errors(e, "Error generating checkout_jalali_str", show_error=False)
+            handel_errors(e, "Error generating checkout_jalali_str")
 
         # --- Progress Pie Visualization ---
         st.subheader("میزان پیشرفت ")
@@ -196,7 +199,7 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
             )
             st.plotly_chart(fig, config={'responsive': True})
         except Exception as e:
-            handel_errors(e, "Error drawing reward progress pie", show_error=False)
+            handel_errors(e, "Error drawing reward progress pie")
 
         # --- Team Member Reward Table ---
         if not deals_for_reward.empty and user_filter is None:
@@ -244,7 +247,7 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                     )
                     download_buttons(deals_for_reward, 'team_reward_deals')
             except Exception as e:
-                handel_errors(e, "display_reward_section team member reward table error", show_error=False)
+                handel_errors(e, "display_reward_section team member reward table error")
 
         # --- Individual Reward Display ---
         if user_filter:
@@ -288,9 +291,9 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                     st.dataframe(data_to_write, width='stretch')
                     download_buttons(data_to_write, f'{selected_member}-deals')
             except Exception as e:
-                handel_errors(e, f"display_reward_section individual member error: {selected_member}", show_error=False)
+                handel_errors(e, f"display_reward_section individual member error: {selected_member}")
     except Exception as e:
-        handel_errors(e, "display_reward_section: general error", show_error=False)
+        handel_errors(e, "display_reward_section: general error")
 
 # ----------- Main App Function -----------
 def social():
@@ -340,7 +343,7 @@ def social():
         try:
             parametrs_df = load_data_cached(spreadsheet_key='MAIN_SPREADSHEET_ID', sheet_name='Social team parameters')
         except Exception as e:
-            handel_errors(e, "Error loading Social team parameters", show_error=False)
+            handel_errors(e, "Error loading Social team parameters")
         parameters = parametrs_df.iloc[0].to_dict() if not parametrs_df.empty else {}
 
         # --- 3. UI Rendering ---
@@ -356,7 +359,7 @@ def social():
             render_dashboard(data, parameters, user_filter=name)
             
     except Exception as e:
-        handel_errors(e, "social main function error", show_error=True, raise_exception=True)
+        handel_errors(e, "social main function error")
 
 def render_dashboard(deals_data: pd.DataFrame, parameters: dict, user_filter: str = None):
     """
@@ -446,7 +449,7 @@ def render_dashboard(deals_data: pd.DataFrame, parameters: dict, user_filter: st
                     labels={'deal_created_time': 'تاریخ', 'تعداد': 'تعداد معامله'}
                 )
     except Exception as e:
-        handel_errors(e, "render_dashboard error", show_error=False)
+        handel_errors(e, "render_dashboard error")
 
 def render_settings_tab(parameters: dict, deals_data: pd.DataFrame):
     """
@@ -516,7 +519,7 @@ def render_settings_tab(parameters: dict, deals_data: pd.DataFrame):
                     handel_errors(Exception("Failed to update team parameters"), "Failed to update team parameters")
 
         except Exception as e:
-            handel_errors(e, "render_settings_tab error", show_error=False, raise_exception=True)
+            handel_errors(e, "render_settings_tab error")
 
 if __name__ == "__main__":
     social()

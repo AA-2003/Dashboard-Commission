@@ -4,6 +4,8 @@ import streamlit as st
 from utils.logger import log_event
 from utils.sheetConnect import load_sheet
 
+DEVELOPMENT = st.secrets.get("GENERAL").get("DEVELOPMENT", False)
+
 def get_username() -> str:
     """Get current username for logging."""
     try:
@@ -45,19 +47,16 @@ def load_data_cached(spreadsheet_key: str, sheet_name: str) -> pd.DataFrame:
         except Exception:
             return 
         
-def handel_errors(e: Exception, message: str = "Unhandled error", show_error: bool = True, raise_exception: bool = False):
+def handel_errors(e: Exception, message: str = "Unhandled error"):
     """
-    Handle errors by logging and optionally displaying an error message.
+    Handle errors based on the environment.
     """
-    log_event(get_username(), 'error', f"{message}: {e}")
-
-    if show_error:
-        st.error("خطای رخ داده است. لطفا با ادمین تماس بگیرید.")
-
-    development = st.secrets.get('GENERAL', {}).get("DEVELOPMENT", False)
-
-    if development and raise_exception:
-        raise e    
+    st.write(DEVELOPMENT)
+    if DEVELOPMENT:
+        raise e
+    else:
+        log_event(get_username(), 'error', f"{message}: {e}")
+        st.error("متاسفانه خطایی رخ داده است. لطفا با پشتیبانی تماس بگیرید.")
 
 def download_buttons(dataframe: pd.DataFrame, base_filename: str):
     """

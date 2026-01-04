@@ -1,7 +1,7 @@
 import streamlit as st
 
 from utils.sheetConnect import load_sheet
-from utils.funcs import load_data_cached
+from utils.funcs import load_data_cached, handel_errors
 from utils.logger import log_event
 
 def refresh_data():
@@ -19,17 +19,15 @@ def render_sidebar():
             all_teams_users = load_sheet(key='QC_SPREADSHEET_ID', sheet_name='Users') 
             st.session_state.all_teams_users = all_teams_users
         except Exception as e:
-            log_event('', "Error loading users data", str(e))
-            st.error("خطا در بارگذاری داده‌ها")
+            handel_errors(e, "Error loading users data")
+            
 
     if 'deals_data' not in st.session_state or st.session_state.deals_data is None:
         try:
             deals_data = load_data_cached(spreadsheet_key='DEALS_SPREADSHEET_ID', sheet_name='Didar Deals')
             st.session_state.deals_data = deals_data
         except Exception as e:
-            log_event('', "Error loading deals data", str(e))
-            st.error("خطا در بارگذاری داده‌ها")
-
+            handel_errors(e, "Error loading deals data")
 
     with st.sidebar:
         st.button("رفرش داده‌ها", on_click=refresh_data)
