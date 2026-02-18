@@ -404,7 +404,7 @@ def sales():
         except Exception as e:
             handel_errors(e, "Error loading all teams users data")
     all_teams_users = st.session_state.all_teams_users
-    st.write(all_teams_users)
+
     # Get team members
     team_members = all_teams_users[
         all_teams_users['team'].apply(
