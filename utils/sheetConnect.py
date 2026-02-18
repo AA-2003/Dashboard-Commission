@@ -259,7 +259,7 @@ def append_to_sheet(
             # If row_data contains dicts, convert to list of values
             elif isinstance(row_data[0], dict):
                 row_data = list(row_data[0].values())
-        
+        spreadsheet_id = st.secrets["SPREADSHEET_IDS"][spreadsheet_id]
         spreadsheet = client.open_by_key(spreadsheet_id)
         worksheet = spreadsheet.worksheet(sheet_name)
         worksheet.append_row(row_data, value_input_option='USER_ENTERED')
@@ -303,7 +303,6 @@ def get_sheet_names(
     except Exception as e:
         print(f"Error retrieving sheet names: {e}")
         return None
-    return None
 
 def write_df_to_sheet(
     client: gspread.Client,

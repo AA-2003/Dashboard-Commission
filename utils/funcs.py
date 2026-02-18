@@ -51,12 +51,13 @@ def handel_errors(e: Exception, message: str = "Unhandled error"):
     """
     Handle errors based on the environment.
     """
-    st.write(DEVELOPMENT)
-    if DEVELOPMENT:
+    if DEVELOPMENT == "True":
         raise e
     else:
         log_event(get_username(), 'error', f"{message}: {e}")
         st.error("متاسفانه خطایی رخ داده است. لطفا با پشتیبانی تماس بگیرید.")
+        st.stop()
+        return
 
 def download_buttons(dataframe: pd.DataFrame, base_filename: str):
     """

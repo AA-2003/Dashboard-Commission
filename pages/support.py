@@ -17,14 +17,13 @@ def support():
     st.title("صفحه پشتیبانی")
 
     with st.form(key='support_form'):
-        name = st.text_input('نام و نام خانوادگی:')
         email = st.text_input('ایمیل (اختیاری):')
         des = st.text_area('شرح مشکل یا درخواست خود را بنویسید:', height=200) 
         submit_button = st.form_submit_button('ارسال')
 
         if submit_button:
-            if name  and email and des:
-                row = [datetime.now().strftime('%Y-%m-%d %H:%M:%S'), name, email, des, 'Commission Dashboard']
+            if des:
+                row = [datetime.now().strftime('%Y-%m-%d %H:%M:%S'), st.session_state.get('userdata')['name'], email, des, 'Commission Dashboard']
                 append_to_sheet(authenticate_google_sheets(), 'REQ_SPREADSHEET_ID', 'Dashboard reports', row)
                 st.success("درخواست شما با موفقیت ثبت شد!") 
             else:
