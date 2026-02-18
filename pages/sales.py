@@ -403,12 +403,13 @@ def sales():
             st.session_state.all_teams_users = all_teams_users
         except Exception as e:
             handel_errors(e, "Error loading all teams users data")
-    print(st.session_state.all_teams_users)
+    all_teams_users = st.session_state.all_teams_users
+    st.write(all_teams_users)
     # Get team members
-    team_members = st.session_state.all_teams_users[
-        st.session_state.all_teams_users['team'].apply(
+    team_members = all_teams_users[
+        all_teams_users['team'].apply(
             lambda x: 'Sales' in [t.strip() for t in x.split('|')]
-        ) & (~st.session_state.all_teams_users['role'].isin(['Admin', 'Team Manager']))
+        ) & (~all_teams_users['role'].isin(['Admin', 'Team Manager']))
     ]
     team_member_names = team_members['didar_name'].tolist()
     
