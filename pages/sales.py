@@ -397,13 +397,13 @@ def sales():
         st.error("شما به این بخش دسترسی ندارید")
         return
     
-    if 'all_teams_users' not in st.session_state:
+    if 'all_teams_users' not in st.session_state or st.session_state.all_teams_users is None:
         try:
             all_teams_users = load_sheet(key='QC_SPREADSHEET_ID', sheet_name='Users') 
             st.session_state.all_teams_users = all_teams_users
         except Exception as e:
             handel_errors(e, "Error loading all teams users data")
-        
+    print(st.session_state.all_teams_users)
     # Get team members
     team_members = st.session_state.all_teams_users[
         st.session_state.all_teams_users['team'].apply(
