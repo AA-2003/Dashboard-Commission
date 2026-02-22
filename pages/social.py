@@ -161,6 +161,9 @@ def display_reward_section(deals_for_reward: pd.DataFrame, hagh_services_for_rew
             deals_for_reward['checkout_jalali_str'] = deals_for_reward['checkout_jalali'].apply(
                 lambda x: x.strftime('%Y/%m/%d') if x else ""
             )
+            hagh_services_for_reward['checkout_jalali_str'] = hagh_services_for_reward['checkout_jalali'].apply(
+                lambda x: x.strftime('%Y/%m/%d') if x else ""
+            )
         except Exception as e:
             handel_errors(e, "Error generating checkout_jalali_str")
 
@@ -224,14 +227,16 @@ def display_reward_section(deals_for_reward: pd.DataFrame, hagh_services_for_rew
                 )
                 # map member_hagh_service  to member stats
                 member_stats = member_stats.merge(
-                    member_hagh_service, left_on='deal_owner', right_on='deal_owner', how='left'
-                )
+                    member_hagh_service, left_on='deal_owner', right_on='deal_owner', how='left',
+                ).fillna(0)
+
                 member_stats['پاداش'] = (member_stats['میزان_فروش'] * float(reward_percent) / 100) + (member_stats['مجموع_حق_سرویس'] * 0.1)                
+                
                 member_stats = member_stats.rename(
                     columns={'deal_owner': 'کارشناس'}
                 ).sort_values(by='تعداد_معامله', ascending=False)
                 st.markdown("#### جدول پاداش اعضای تیم")
-                st.dataframe(member_stats.style.format({'میزان_فروش': '{:,.0f}', 'پاداش': '{:,.0f}'}), width='stretch')
+                st.dataframe(member_stats.style.format({'میزان_فروش': '{:,.0f}', 'پاداش': '{:,.0f}', 'مجموع_حق_سرویس': '{:,.0f}', 'تعداد_حق_سرویس': '{:,.0f}'}), width='stretch')
 
                 download_buttons(member_stats, 'team_reward')
 
@@ -245,13 +250,13 @@ def display_reward_section(deals_for_reward: pd.DataFrame, hagh_services_for_rew
                             ]
                         ].rename(
                             columns={
-                                'deal_id': 'شناسه معامله',
+                                'deal_id': 'کد معامله',
                                 'deal_title': 'عنوان معامله',
                                 'deal_value': 'مبلغ معامله',
                                 'deal_created_time': 'تاریخ ایجاد معامله',
                                 'deal_owner': 'کارشناس',
                                 'deal_source': 'کانال فروش',
-                                'contact_id': 'شناسه مشتری',
+                                'contact_id': 'کد مشتری',
                                 'checkout': 'تاریخ خروج',
                                 'checkout_jalali_str': 'تاریخ خروج (شمسی)'
                             }
@@ -263,13 +268,14 @@ def display_reward_section(deals_for_reward: pd.DataFrame, hagh_services_for_rew
                     st.dataframe(
                         hagh_services_for_reward[
                             [
-                                'deal_id', 'final_amount', 'deal_owner'
+                                'deal_id', 'final_amount', 'deal_owner', 'checkout_jalali_str'
                             ]
                         ].rename(
                             columns={
-                                'deal_id': 'شناسه معامله',
+                                'deal_id': 'کد معامله',
                                 'final_amount': 'مبلغ حق سرویس',
-                                'deal_owner': 'کارشناس'
+                                'deal_owner': 'کارشناس',
+                                'checkout_jalali_str': 'تاریخ خروج (شمسی)'
                             }
                         ),
                         width='stretch'
@@ -306,13 +312,13 @@ def display_reward_section(deals_for_reward: pd.DataFrame, hagh_services_for_rew
                         ]
                     ].rename(
                         columns={
-                            'deal_id': 'شناسه معامله',
+                            'deal_id': 'کد معامله',
                             'deal_title': 'عنوان معامله',
                             'deal_value': 'مبلغ معامله',
                             'deal_created_time': 'تاریخ ایجاد معامله',
                             'deal_owner': 'کارشناس',
                             'deal_source': 'کانال فروش',
-                            'contact_id': 'شناسه مشتری',
+                            'contact_id': 'کد مشتری',
                             'checkout': 'تاریخ خروج',
                             'checkout_jalali_str': 'تاریخ خروج (شمسی)'
                         }
@@ -370,6 +376,7 @@ def social():
 
         # For rewards, we need Jalali dates based on the checkout
         data['checkout_jalali'] = data['checkout'].apply(safe_to_jalali)
+        hagh_services['checkout_jalali'] = hagh_services['checkout'].apply(safe_to_jalali)
         data['checkout_jalali_year_month'] = data['checkout_jalali'].apply(lambda d: f"{d.year}-{d.month:02d}" if d else "")
 
         # For general stats, we use the deal_created_time
