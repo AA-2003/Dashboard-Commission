@@ -3,10 +3,7 @@ import streamlit as st
 from utils.custom_css import apply_custom_css
 from utils.sidebar import render_sidebar
 
-
 COMMISSION_DASHBOARD = "داشبورد عملکرد تیم ها"
-
-    
 
 def main():
     """Main function to run the Streamlit app."""

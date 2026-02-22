@@ -7,7 +7,7 @@ from typing import Optional
 from utils.funcs import load_data_cached, handel_errors, download_buttons
 from utils.custom_css import apply_custom_css
 from utils.sidebar import render_sidebar 
-from utils.sheetConnect import write_df_to_sheet, authenticate_google_sheets
+from utils.sheetConnect import write_df_to_sheet, authenticate_google_sheets, load_sheet
 
 # --- Utility Functions ---
 def get_username() -> str:
@@ -116,12 +116,13 @@ def plot_daily_trend(df: pd.DataFrame, date_col: str, value_col: str, title: str
     except Exception as e:
         handel_errors(e, "plot_daily_trend error")
 
-def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, user_filter: str = None):
+def display_reward_section(deals_for_reward: pd.DataFrame, hagh_services_for_reward: pd.DataFrame, parameters: dict, user_filter: str = None):
     """
         Compute and display the reward section, including progress pie and individual metrics.
 
     Args:
         deals_for_reward: Deals filtered by checkout date in current month.
+        hagh_services_for_reward: Hagh services filtered by checkout date in current month.
         parameters: Dict containing target and reward percentages.
         user_filter: If provided, show only that user's rewards; otherwise show team rewards.
     """
@@ -213,7 +214,19 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                     )
                     .reset_index()
                 )
-                member_stats['پاداش'] = member_stats['میزان_فروش'] * float(reward_percent) / 100
+                # calculate hagh service reward for each member
+                member_hagh_service =( 
+                    hagh_services_for_reward.groupby('deal_owner')
+                   .agg(
+                        تعداد_حق_سرویس=('final_amount', 'count'),
+                        مجموع_حق_سرویس=('final_amount', lambda x: x.sum()/10)
+                   ).reset_index()
+                )
+                # map member_hagh_service  to member stats
+                member_stats = member_stats.merge(
+                    member_hagh_service, left_on='deal_owner', right_on='deal_owner', how='left'
+                )
+                member_stats['پاداش'] = (member_stats['میزان_فروش'] * float(reward_percent) / 100) + (member_stats['مجموع_حق_سرویس'] * 0.1)                
                 member_stats = member_stats.rename(
                     columns={'deal_owner': 'کارشناس'}
                 ).sort_values(by='تعداد_معامله', ascending=False)
@@ -246,6 +259,22 @@ def display_reward_section(deals_for_reward: pd.DataFrame, parameters: dict, use
                         width='stretch'
                     )
                     download_buttons(deals_for_reward, 'team_reward_deals')
+                with st.expander('جزئیات حق سرویس برای پاداش'):
+                    st.dataframe(
+                        hagh_services_for_reward[
+                            [
+                                'deal_id', 'final_amount', 'deal_owner'
+                            ]
+                        ].rename(
+                            columns={
+                                'deal_id': 'شناسه معامله',
+                                'final_amount': 'مبلغ حق سرویس',
+                                'deal_owner': 'کارشناس'
+                            }
+                        ),
+                        width='stretch'
+                    )
+                    download_buttons(hagh_services_for_reward, 'team_hagh_services')
             except Exception as e:
                 handel_errors(e, "display_reward_section team member reward table error")
 
@@ -323,6 +352,16 @@ def social():
 
         # --- 2. Data Loading and Pre-processing ---
         data = st.session_state.deals_data.copy()
+        # load hagh services
+        if 'hagh_services' not in st.session_state:
+            try:
+                hagh_services = load_sheet(key='DEALS_SPREADSHEET_ID', sheet_name='حق سرویس')
+                st.session_state.hagh_services = hagh_services
+            except Exception as e:
+                handel_errors(e, "Error loading Hagh services data")
+        
+        hagh_services = st.session_state.get('hagh_services', pd.DataFrame())
+
         data = data[
             (data['deal_source'].isin(['دایرکت اینستاگرام', 'تلگرام(سوشال)', 'واتساپ(سوشال)'])) &
             (data['deal_type'].isin(['فروش جدید', 'فروش تمدید'])) &
@@ -351,23 +390,23 @@ def social():
             # Show admin/manager tabs
             tabs = st.tabs(['داشبورد اصلی', 'تنظیمات پاداش'])
             with tabs[0]:
-                render_dashboard(data, parameters)
+                render_dashboard(data, hagh_services, parameters)
             with tabs[1]:
                 render_settings_tab(parameters, data)
         else:
             # Non-manager user: show only their dashboard
-            render_dashboard(data, parameters, user_filter=name)
+            render_dashboard(data, hagh_services, parameters, user_filter=name)
             
     except Exception as e:
         handel_errors(e, "social main function error")
 
-def render_dashboard(deals_data: pd.DataFrame, parameters: dict, user_filter: str = None):
+def render_dashboard(deals_data: pd.DataFrame, hagh_services, parameters: dict, user_filter: str = None):
     """
     Render the main dashboard. Can produce admin view or regular user view.
 
     Args:
         deals_data: DataFrame of all deals (team or individual).
-        shift_data: DataFrame of shift logs.
+        hagh_services: DataFrame of hagh services.
         parameters: Dict of reward config.
         user_filter: If set, restricts to a specific expert.
     """
@@ -389,7 +428,14 @@ def render_dashboard(deals_data: pd.DataFrame, parameters: dict, user_filter: st
             (deals_data['deal_type'] == 'فروش جدید')
         ].reset_index(drop=True)
 
-        display_reward_section(deals_for_reward, parameters, user_filter=user_filter)
+        hagh_services_for_reward = hagh_services[
+            (hagh_services['deal_id'].isin(deals_for_reward['deal_id'])) 
+        ].reset_index(drop=True)
+
+        hagh_services_for_reward['final_amount'] = hagh_services_for_reward['final_amount'].astype(int)
+
+        display_reward_section(deals_for_reward, hagh_services_for_reward, parameters, user_filter=user_filter)
+
         st.divider()
         st.subheader("عملکرد کلی تیم")
         display_metrics(monthly_deals)
